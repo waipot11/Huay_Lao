@@ -1,0 +1,6 @@
+{
+  "name": "LaoLotto AI - วิเคราะห์หวยลาว & โพสต์อัตโนมัติ",
+  "description": "ระบบวิเคราะห์เลขเด็ดหวยลาวพัฒนาด้วย AI สถิติย้อนหลังหลายแหล่ง พร้อมระบบตั้งเวลาโพสต์อัตโนมัติบน Facebook ล่วงหน้า 5 วัน",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
