@@ -2,8 +2,8 @@ import React from 'react';
 import { Sparkles, CalendarClock, BarChart3, Image as ImageIcon, Facebook, CheckCircle2, AlertCircle, Send } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'ai' | 'facebook' | 'line' | 'telegram' | 'banner' | 'stats';
-  setActiveTab: (tab: 'ai' | 'facebook' | 'line' | 'telegram' | 'banner' | 'stats') => void;
+  activeTab: 'ai' | 'facebook' | 'telegram' | 'banner' | 'stats';
+  setActiveTab: (tab: 'ai' | 'facebook' | 'telegram' | 'banner' | 'stats') => void;
   fbConnected: boolean;
   upcomingDateThai: string;
 }
@@ -58,18 +58,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="text-[10px] px-1.5 py-0.2 bg-blue-500/20 text-blue-300 rounded font-mono">
             5 วัน
           </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('line')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap shrink-0 ${
-            activeTab === 'line'
-              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-          }`}
-        >
-          <span className="w-2 h-2 rounded-full bg-[#06C755] animate-pulse" />
-          <span className="font-semibold text-[#06C755]">แจ้งเตือน LINE</span>
         </button>
 
         <button

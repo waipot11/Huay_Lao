@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { AIAnalysisTab, AIAnalysisResult, RecordDrawPayload } from './components/AIAnalysisTab';
 import { FacebookSchedulerTab, ScheduledPost, FacebookConfig } from './components/FacebookSchedulerTab';
-import { LineNotifyTab, LineConfig, LineNotificationLog, LineSchedulerStatus } from './components/LineNotifyTab';
 import {
   TelegramNotifyTab,
   TelegramConfig,
@@ -65,7 +64,7 @@ function buildAnalysisFromStats(statsData: ComprehensiveStats, upcomingData: Upc
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'ai' | 'facebook' | 'line' | 'telegram' | 'banner' | 'stats'>('ai');
+  const [activeTab, setActiveTab] = useState<'ai' | 'facebook' | 'telegram' | 'banner' | 'stats'>('ai');
   const [draws, setDraws] = useState<LaoLotteryDraw[]>(HISTORICAL_DRAWS);
   const [stats, setStats] = useState<ComprehensiveStats>(() => computeComprehensiveStats(HISTORICAL_DRAWS));
   const [upcoming, setUpcoming] = useState<UpcomingDrawInfo>(() => getUpcomingLaoDraw(new Date(), 5, HISTORICAL_DRAWS));
@@ -84,22 +83,6 @@ export default function App() {
 
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
 
-  // LINE 2-Hour Notification Config & Logs (Push Message & Messaging API)
-  const [lineConfig, setLineConfig] = useState<LineConfig>({
-    enabled: true,
-    type: 'messaging_api',
-    channelAccessToken: '',
-    userId: '',
-    targetUserId: '',
-    sendMode: 'push',
-    hoursAhead: 2,
-    customAlertTime: '18:30',
-    targetTime: '18:30 น.',
-    status: 'connected',
-  });
-  const [lineLogs, setLineLogs] = useState<LineNotificationLog[]>([]);
-  const [lineSchedulerStatus, setLineSchedulerStatus] = useState<LineSchedulerStatus | null>(null);
-
   // Telegram Group Bot Config & Logs
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({
     enabled: true,
@@ -115,20 +98,6 @@ export default function App() {
   });
   const [telegramLogs, setTelegramLogs] = useState<TelegramNotificationLog[]>([]);
   const [telegramSchedulerStatus, setTelegramSchedulerStatus] = useState<TelegramSchedulerStatus | null>(null);
-
-  const refreshLineStatus = async () => {
-    try {
-      const res = await fetch('/api/line/status');
-      const data = await res.json();
-      if (data.success) {
-        if (data.schedulerStatus) setLineSchedulerStatus(data.schedulerStatus);
-        if (data.config) setLineConfig(data.config);
-        if (data.logs) setLineLogs(data.logs);
-      }
-    } catch (err) {
-      console.error('LINE status refresh error:', err);
-    }
-  };
 
   const refreshTelegramStatus = async () => {
     try {
@@ -174,19 +143,6 @@ export default function App() {
           setPosts(postsData.posts);
         }
 
-        const lineCfgRes = await fetch('/api/line/config');
-        const lineCfgData = await lineCfgRes.json();
-        if (lineCfgData.success) {
-          if (lineCfgData.config) setLineConfig(lineCfgData.config);
-          if (lineCfgData.schedulerStatus) setLineSchedulerStatus(lineCfgData.schedulerStatus);
-        }
-
-        const lineLogsRes = await fetch('/api/line/logs');
-        const lineLogsData = await lineLogsRes.json();
-        if (lineLogsData.success && lineLogsData.logs) {
-          setLineLogs(lineLogsData.logs);
-        }
-
         const [tgCfgRes, tgLogsRes] = await Promise.all([
           fetch('/api/telegram/config'),
           fetch('/api/telegram/logs'),
@@ -207,9 +163,8 @@ export default function App() {
 
     fetchData();
 
-    // Keep server awake & refresh LINE/Telegram scheduler status every 30s while app is open
+    // Keep server awake & refresh Telegram scheduler status every 30s while app is open
     const heartbeatTimer = setInterval(() => {
-      refreshLineStatus();
       refreshTelegramStatus();
     }, 30000);
 
@@ -233,7 +188,6 @@ export default function App() {
         setStats(data.stats);
         setUpcoming(data.upcoming);
         setAnalysis(buildAnalysisFromStats(data.stats, data.upcoming));
-        refreshLineStatus();
         refreshTelegramStatus();
         return {
           success: true,
@@ -378,64 +332,6 @@ export default function App() {
     await handleUpdatePost(newPost);
   };
 
-  // LINE Notification Handlers
-  const handleSaveLineConfig = async (newCfg: Partial<LineConfig>) => {
-    try {
-      const merged = { ...lineConfig, ...newCfg };
-      setLineConfig(merged);
-      const res = await fetch('/api/line/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(merged),
-      });
-      const data = await res.json();
-      if (data.success) {
-        if (data.config) setLineConfig(data.config);
-        if (data.schedulerStatus) setLineSchedulerStatus(data.schedulerStatus);
-      }
-    } catch (err) {
-      console.error('Failed to save LINE config:', err);
-    }
-  };
-
-  const handleTestLineSend = async (
-    customMessage?: string,
-    credentials?: { channelAccessToken?: string; userId?: string; sendMode?: 'push' | 'broadcast' }
-  ) => {
-    try {
-      const res = await fetch('/api/line/test-send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customMessage,
-          channelAccessToken: credentials?.channelAccessToken,
-          userId: credentials?.userId,
-          sendMode: credentials?.sendMode,
-        }),
-      });
-      const data = await res.json();
-      if (data.logs) setLineLogs(data.logs);
-      if (data.config) setLineConfig(data.config);
-      if (data.schedulerStatus) setLineSchedulerStatus(data.schedulerStatus);
-      return data;
-    } catch (err: any) {
-      return { success: false, message: err.message || 'ส่งข้อความไม่สำเร็จ' };
-    }
-  };
-
-  const handleForceLineTrigger = async () => {
-    try {
-      const res = await fetch('/api/line/cron-trigger?force=true', { method: 'POST' });
-      const data = await res.json();
-      if (data.logs) setLineLogs(data.logs);
-      if (data.config) setLineConfig(data.config);
-      if (data.schedulerStatus) setLineSchedulerStatus(data.schedulerStatus);
-      return data;
-    } catch (err: any) {
-      return { success: false, triggered: false, reason: err.message || 'เกิดข้อผิดพลาด' };
-    }
-  };
-
   // Telegram Group Notification Handlers
   const handleSaveTelegramConfig = async (newCfg: Partial<TelegramConfig>) => {
     try {
@@ -548,20 +444,6 @@ export default function App() {
             onTestToken={handleTestToken}
             onPublishNow={handlePublishNow}
             onUpdatePost={handleUpdatePost}
-          />
-        )}
-
-        {activeTab === 'line' && (
-          <LineNotifyTab
-            config={lineConfig}
-            schedulerStatus={lineSchedulerStatus}
-            upcoming={upcoming}
-            stats={stats}
-            logs={lineLogs}
-            onSaveConfig={handleSaveLineConfig}
-            onTestSend={handleTestLineSend}
-            onRefreshStatus={refreshLineStatus}
-            onForceTrigger={handleForceLineTrigger}
           />
         )}
 
