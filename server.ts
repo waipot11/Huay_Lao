@@ -232,18 +232,14 @@ app.post('/api/history/add', (req: Request, res: Response) => {
   const dayNum = dt.getUTCDay();
   const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
-  let dayOfWeek: 'Monday' | 'Wednesday' | 'Friday' = 'Wednesday';
-  let dayOfWeekThai = 'วันพุธ';
-  let shortDay = 'พุธ';
-  if (dayNum === 1) {
-    dayOfWeek = 'Monday';
-    dayOfWeekThai = 'วันจันทร์';
-    shortDay = 'จันทร์';
-  } else if (dayNum === 5) {
-    dayOfWeek = 'Friday';
-    dayOfWeekThai = 'วันศุกร์';
-    shortDay = 'ศุกร์';
-  }
+  const weekdayMap: Record<number, { dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'; dayOfWeekThai: string; shortDay: string }> = {
+    1: { dayOfWeek: 'Monday', dayOfWeekThai: 'วันจันทร์', shortDay: 'จันทร์' },
+    2: { dayOfWeek: 'Tuesday', dayOfWeekThai: 'วันอังคาร', shortDay: 'อังคาร' },
+    3: { dayOfWeek: 'Wednesday', dayOfWeekThai: 'วันพุธ', shortDay: 'พุธ' },
+    4: { dayOfWeek: 'Thursday', dayOfWeekThai: 'วันพฤหัสบดี', shortDay: 'พฤหัสบดี' },
+    5: { dayOfWeek: 'Friday', dayOfWeekThai: 'วันศุกร์', shortDay: 'ศุกร์' },
+  };
+  const { dayOfWeek, dayOfWeekThai, shortDay } = weekdayMap[dayNum] || weekdayMap[3];
 
   const drawDateThai = `${shortDay} ${d} ${thaiMonths[(m || 1) - 1]} ${y + 543}`;
   const isPartial = !/^\d{4}$/.test(f4) || !/^\d{2}$/.test(b2);
@@ -843,7 +839,7 @@ function getTelegramSchedulerStatus() {
   const currentMin = bangkokTime.getUTCMinutes();
   const todayStr = bangkokTime.toISOString().slice(0, 10);
   const thaiDays = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-  const isDrawDay = [1, 3, 5].includes(dayOfWeek);
+  const isDrawDay = [1, 2, 3, 4, 5].includes(dayOfWeek);
 
   const timeInfo = computeTargetAlertTime(telegramConfig.hoursAhead, telegramConfig.customAlertTime);
   const currentTotalMin = currentHour * 60 + currentMin;
@@ -1020,8 +1016,8 @@ async function runTelegramAutoScheduler(options?: { force?: boolean; source?: st
     const drawCutoffMin = 20 * 60 + 35;
 
     if (!options?.force) {
-      if (![1, 3, 5].includes(dayOfWeek)) {
-        return { triggered: false, reason: 'วันนี้ไม่ใช่วันออกรางวัลหวยลาว (จันทร์, พุธ, ศุกร์)' };
+      if (![1, 2, 3, 4, 5].includes(dayOfWeek)) {
+        return { triggered: false, reason: 'วันนี้ไม่ใช่วันออกรางวัลหวยลาว (ออกรางวัลทุกวันจันทร์–ศุกร์ หยุดเสาร์–อาทิตย์)' };
       }
       if (currentTotalMin < targetTotalMin) {
         return {

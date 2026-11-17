@@ -7,8 +7,10 @@ export interface DigitStat {
   lastSeenDrawsAgo: number;
 }
 
+export type LaoDrawDay = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday';
+
 export interface DayOfWeekStat {
-  day: 'Monday' | 'Wednesday' | 'Friday';
+  day: LaoDrawDay;
   dayThai: string;
   totalDraws: number;
   topDigits: { digit: number; count: number }[];
@@ -168,7 +170,7 @@ export interface BacktestReport {
 export interface ComprehensiveStats {
   totalDraws: number;
   double3DRatePercent: number;
-  targetDayOfWeek: 'Monday' | 'Wednesday' | 'Friday';
+  targetDayOfWeek: LaoDrawDay;
   targetDayThai: string;
   overallDigitFrequencies: DigitStat[];
   positionFrequencies: {
@@ -198,7 +200,7 @@ export interface ComprehensiveStats {
 export interface UpcomingDrawInfo {
   drawDate: string; // YYYY-MM-DD
   drawDateThai: string;
-  dayOfWeek: 'Monday' | 'Wednesday' | 'Friday';
+  dayOfWeek: LaoDrawDay;
   dayOfWeekThai: string;
   drawTime: string; // "20:30 น."
   postScheduledDate: string; // 5 days prior (YYYY-MM-DD)
@@ -255,21 +257,28 @@ export function getUpcomingLaoDraw(
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
   };
 
-  while (![1, 3, 5].includes(candidate.getUTCDay()) || formatDateStr(candidate) <= latestDrawnDate) {
+  const todayStr = formatDateStr(candidate);
+  const currentTotalMin = bangkokRef.getUTCHours() * 60 + bangkokRef.getUTCMinutes();
+  const isPastDrawCutoffToday = currentTotalMin > 20 * 60 + 35;
+
+  // Since 2 April 2569 (2026), Lao Lottery draws 5 days/week: Monday-Friday (1..5), off Saturday & Sunday
+  while (
+    ![1, 2, 3, 4, 5].includes(candidate.getUTCDay()) ||
+    formatDateStr(candidate) <= latestDrawnDate ||
+    (isPastDrawCutoffToday && formatDateStr(candidate) === todayStr)
+  ) {
     candidate.setUTCDate(candidate.getUTCDate() + 1);
   }
 
   const dayNum = candidate.getUTCDay();
-  let dayOfWeek: 'Monday' | 'Wednesday' | 'Friday' = 'Wednesday';
-  let dayOfWeekThai = 'วันพุธ';
-
-  if (dayNum === 1) {
-    dayOfWeek = 'Monday';
-    dayOfWeekThai = 'วันจันทร์';
-  } else if (dayNum === 5) {
-    dayOfWeek = 'Friday';
-    dayOfWeekThai = 'วันศุกร์';
-  }
+  const dayMap: Record<number, { dayOfWeek: LaoDrawDay; dayOfWeekThai: string }> = {
+    1: { dayOfWeek: 'Monday', dayOfWeekThai: 'วันจันทร์' },
+    2: { dayOfWeek: 'Tuesday', dayOfWeekThai: 'วันอังคาร' },
+    3: { dayOfWeek: 'Wednesday', dayOfWeekThai: 'วันพุธ' },
+    4: { dayOfWeek: 'Thursday', dayOfWeekThai: 'วันพฤหัสบดี' },
+    5: { dayOfWeek: 'Friday', dayOfWeekThai: 'วันศุกร์' },
+  };
+  const { dayOfWeek, dayOfWeekThai } = dayMap[dayNum] || { dayOfWeek: 'Wednesday', dayOfWeekThai: 'วันพุธ' };
 
   const year = candidate.getUTCFullYear();
   const month = candidate.getUTCMonth();
@@ -339,7 +348,7 @@ interface V3CoreOutput {
 
 function runV3CoreEngine(
   drawsDescending: LaoLotteryDraw[],
-  targetDay: 'Monday' | 'Wednesday' | 'Friday'
+  targetDay: LaoDrawDay
 ): V3CoreOutput {
   const total = drawsDescending.length;
   const counts3D = new Array(10).fill(0);
@@ -408,7 +417,7 @@ function runV3CoreEngine(
     const sDue = (lastSeen3D[d] / maxLast) * 55;
     // 2. Mean-Reversion Deficit (20 pts): under-represented digits catching up to expected 30% rate
     const sCold = ((maxCnt - counts3D[d]) / (maxCnt - minCnt)) * 20;
-    // 3. Empirical Day-of-Week Deficit (15 pts): under-represented on Mon/Wed/Fri (no hardcoded astrology bias)
+    // 3. Empirical Day-of-Week Deficit (15 pts): under-represented on Mon–Fri (no hardcoded astrology bias)
     const dayExpected = (dayTotal * 3) / 10;
     const sDayDue =
       dayTotal > 0 ? Math.max(0, (dayExpected - dayCnt3D[d]) / Math.max(1, dayExpected)) * 15 : 0;
@@ -701,9 +710,11 @@ export function computeComprehensiveStats(
   let full4DDrawsCount = 0;
   let double3DCount = 0;
 
-  const dayBuckets: Record<'Monday' | 'Wednesday' | 'Friday', { total: number; digits: number[] }> = {
+  const dayBuckets: Record<LaoDrawDay, { total: number; digits: number[] }> = {
     Monday: { total: 0, digits: new Array(10).fill(0) },
+    Tuesday: { total: 0, digits: new Array(10).fill(0) },
     Wednesday: { total: 0, digits: new Array(10).fill(0) },
+    Thursday: { total: 0, digits: new Array(10).fill(0) },
     Friday: { total: 0, digits: new Array(10).fill(0) },
   };
 
@@ -825,7 +836,7 @@ export function computeComprehensiveStats(
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  const dayStats: Record<'Monday' | 'Wednesday' | 'Friday', DayOfWeekStat> = {
+  const dayStats: Record<LaoDrawDay, DayOfWeekStat> = {
     Monday: {
       day: 'Monday',
       dayThai: 'วันจันทร์',
@@ -837,6 +848,17 @@ export function computeComprehensiveStats(
       kamlangWan: 15,
       auspiciousDigits: [2, 4, 7, 9],
     },
+    Tuesday: {
+      day: 'Tuesday',
+      dayThai: 'วันอังคาร',
+      totalDraws: dayBuckets.Tuesday.total,
+      topDigits: dayBuckets.Tuesday.digits
+        .map((count, digit) => ({ digit, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3),
+      kamlangWan: 8,
+      auspiciousDigits: [3, 5, 8, 1],
+    },
     Wednesday: {
       day: 'Wednesday',
       dayThai: 'วันพุธ',
@@ -847,6 +869,17 @@ export function computeComprehensiveStats(
         .slice(0, 3),
       kamlangWan: 17,
       auspiciousDigits: [4, 8, 2, 5],
+    },
+    Thursday: {
+      day: 'Thursday',
+      dayThai: 'วันพฤหัสบดี',
+      totalDraws: dayBuckets.Thursday.total,
+      topDigits: dayBuckets.Thursday.digits
+        .map((count, digit) => ({ digit, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3),
+      kamlangWan: 19,
+      auspiciousDigits: [5, 7, 1, 9],
     },
     Friday: {
       day: 'Friday',

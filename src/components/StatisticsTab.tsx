@@ -21,7 +21,7 @@ interface StatisticsTabProps {
 
 export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HISTORICAL_DRAWS }) => {
   const [subView, setSubView] = useState<'history' | 'frequencies' | 'animals' | 'kamlang'>('history');
-  const [dayFilter, setDayFilter] = useState<'all' | 'Monday' | 'Wednesday' | 'Friday'>('all');
+  const [dayFilter, setDayFilter] = useState<'all' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [animalSearch, setAnimalSearch] = useState('');
 
@@ -164,10 +164,10 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
               />
             </div>
 
-            <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
               <button
                 onClick={() => setDayFilter('all')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                   dayFilter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -175,23 +175,39 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
               </button>
               <button
                 onClick={() => setDayFilter('Monday')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                   dayFilter === 'Monday' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 วันจันทร์
               </button>
               <button
+                onClick={() => setDayFilter('Tuesday')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                  dayFilter === 'Tuesday' ? 'bg-pink-500/20 text-pink-300' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                วันอังคาร
+              </button>
+              <button
                 onClick={() => setDayFilter('Wednesday')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                   dayFilter === 'Wednesday' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 วันพุธ
               </button>
               <button
+                onClick={() => setDayFilter('Thursday')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                  dayFilter === 'Thursday' ? 'bg-orange-500/20 text-orange-300' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                วันพฤหัสบดี
+              </button>
+              <button
                 onClick={() => setDayFilter('Friday')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                   dayFilter === 'Friday' ? 'bg-blue-500/20 text-blue-300' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -339,14 +355,14 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Calendar className="w-5 h-5 text-amber-400" />
-              <span>สูตรกำลังวันมหาทักษาโบราณสำหรับหวยลาว (จันทร์, พุธ, ศุกร์)</span>
+              <span>สูตรกำลังวันมหาทักษาโบราณสำหรับหวยลาว (จันทร์–ศุกร์ 5 วันต่อสัปดาห์)</span>
             </h3>
             <p className="text-xs text-slate-400 mt-1">
-              ศาสตร์คำนวณกำลังวันตามโหราศาสตร์พยากรณ์ตัวเลข ร่วมกับสถิติผลจริงของหวยลาว
+              ศาสตร์คำนวณกำลังวันตามโหราศาสตร์พยากรณ์ตัวเลข ร่วมกับสถิติผลจริงของหวยลาวพัฒนา (หยุดเสาร์–อาทิตย์)
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {Object.values(stats.dayStats).map((d) => (
               <div
                 key={d.day}

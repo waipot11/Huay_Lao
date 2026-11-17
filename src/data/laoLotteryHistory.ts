@@ -2,7 +2,7 @@ export interface LaoLotteryDraw {
   id: string;
   drawDate: string; // YYYY-MM-DD
   drawDateThai: string;
-  dayOfWeek: 'Monday' | 'Wednesday' | 'Friday';
+  dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday';
   dayOfWeekThai: string;
   sixDigits: string;
   fourDigits: string;

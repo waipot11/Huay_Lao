@@ -411,7 +411,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
               <p className="text-xs sm:text-sm text-slate-300 mt-1.5 leading-relaxed">
                 ส่งแนวทางหวยลาวพร้อมเลข 3 ตัวเต็ง & พอร์ต 15 ชุดตรงเข้า{' '}
                 <strong>กลุ่มสมาชิก Telegram (Group / Supergroup / Channel)</strong> ฟรีไม่จำกัดโควต้า เวลา{' '}
-                <strong className="text-sky-400 font-mono font-bold">{targetNotificationTime}</strong> ทุกวันจันทร์, พุธ, ศุกร์
+                <strong className="text-sky-400 font-mono font-bold">{targetNotificationTime}</strong> ทุกวันจันทร์–ศุกร์ (หยุดเสาร์–อาทิตย์)
               </p>
             </div>
           </div>
@@ -810,7 +810,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
             <div className="space-y-3 pt-1">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <label className="text-xs font-bold text-slate-300">
-                  ตั้งเวลาส่งเข้ากลุ่ม Telegram อัตโนมัติ (วันจันทร์, พุธ, ศุกร์ เวลาไทย):
+                  ตั้งเวลาส่งเข้ากลุ่ม Telegram อัตโนมัติ (วันจันทร์–ศุกร์ เวลาไทย):
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-slate-400">กำหนดเวลาเอง:</span>
@@ -906,7 +906,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
 
                 <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
                   <span className="text-slate-400">เวลาออกรางวัล:</span>
-                  <span className="font-bold text-slate-200 font-mono">20:30 น. (วัน{upcoming.dayOfWeekThai})</span>
+                  <span className="font-bold text-slate-200 font-mono">20:30 น. ({upcoming.dayOfWeekThai})</span>
                 </div>
 
                 <div className="p-3 bg-sky-950/40 rounded-xl border border-[#229ED9]/30 flex items-center justify-between">
@@ -932,8 +932,8 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
                   <span className="text-lg font-black text-amber-400 font-mono tracking-wider">{main3D}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs mt-1">
-                  <span className="text-slate-400">พอร์ต V2:</span>
-                  <span className="text-xs font-bold text-sky-400">10 ชุดหลัก + 5 ชุดกันเบิ้ล</span>
+                  <span className="text-slate-400">พอร์ต V3 (13+2):</span>
+                  <span className="text-xs font-bold text-sky-400">13 ชุดหลัก + 2 ชุดกันเบิ้ล</span>
                 </div>
               </div>
             </div>
@@ -947,7 +947,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
                 </h4>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                นำลิงก์นี้ไปตั้งเวลาที่ <strong className="text-white">cron-job.org</strong> (ฟรี) ให้ยิงทุกวันจันทร์/พุธ/ศุกร์ เวลา {customAlertTime} น. เพื่อปลุกเซิร์ฟเวอร์ให้ส่งเข้ากลุ่ม Telegram ตรงเวลาแม้ปิดเว็บ:
+                นำลิงก์นี้ไปตั้งเวลาที่ <strong className="text-white">cron-job.org</strong> (ฟรี) ให้ยิงทุกวันจันทร์–ศุกร์ เวลา {customAlertTime} น. เพื่อปลุกเซิร์ฟเวอร์ให้ส่งเข้ากลุ่ม Telegram ตรงเวลาแม้ปิดเว็บ:
               </p>
               <div className="flex items-center gap-1.5">
                 <input
@@ -1149,7 +1149,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
               <h4 className="text-sm font-bold text-white">ตั้งเวลาส่งเข้ากลุ่มแม้ปิดหน้าเว็บ</h4>
               <p className="text-xs text-slate-300 leading-relaxed">
                 ตั้ง Secrets <code>TELEGRAM_BOT_TOKEN</code> และ <code>TELEGRAM_CHAT_ID</code> ใน AI Studio Settings แล้วนำ URL ด้านล่างไปตั้งใน{' '}
-                <strong className="text-sky-400">cron-job.org</strong> เวลา <strong>{customAlertTime} น. (Asia/Bangkok) วันจันทร์/พุธ/ศุกร์</strong>
+                <strong className="text-sky-400">cron-job.org</strong> เวลา <strong>{customAlertTime} น. (Asia/Bangkok) วันจันทร์–ศุกร์</strong>
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <code className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-sky-300 overflow-x-auto">
