@@ -176,10 +176,10 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
   const portfolio15 = conv3D.fifteenSetsPortfolio;
   const main3D = conv3D.mainPick;
   const main4D = conv3D.fourDigitJackpot;
-  const highlightMain = String(stats.hotDigits[0] ?? main3D[0] ?? '0');
-  const highlightSecondary = String(stats.hotDigits[1] ?? main3D[1] ?? '0');
-  const topPairs = (conv3D.derivedTwoDigits?.topList || [conv3D.derivedTwoDigits.top]).slice(0, 3).join(' - ');
-  const bottomPairs = (conv3D.derivedTwoDigits?.bottomList || [conv3D.derivedTwoDigits.bottom]).slice(0, 3).join(' - ');
+  const highlightMain = String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? main3D[0] ?? '0');
+  const highlightSecondary = String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? main3D[1] ?? '0');
+  const topPairs = (conv3D.derivedTwoDigits?.topList || [conv3D.derivedTwoDigits.top]).slice(0, 5).join(' - ');
+  const bottomPairs = (conv3D.derivedTwoDigits?.bottomList || [conv3D.derivedTwoDigits.bottom]).slice(0, 4).join(' - ');
   const animalMain = `${conv3D.animalLink.name} (${conv3D.animalLink.number})`;
   const animalBackup = `${conv3D.animalBackup?.name || conv3D.animalLink.name} (${conv3D.animalBackup?.number || conv3D.animalLink.number})`;
   const doubleShieldList = portfolio15.doubleShieldSets || conv3D.doubleShieldSets || [];
@@ -191,21 +191,23 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
   const telegramHtmlPreviewMessage = `🇱🇦<b>【 แจ้งเตือนสมาชิกกลุ่ม! หวยลาวพัฒนาออกวันนี้ 】</b>🇱🇦
 ⏰ เวลาแจ้งเตือน ${targetNotificationTime} (หวยออกเวลา 20:30 น.)
 📅 งวดประจำ${upcoming.drawDateThai}
+📊 <i>Engine V3 Mean-Reversion (Backtest 35 งวด: วิ่ง/รูด ${stats.backtestReport.run2Rate}%)</i>
+
+⭐ <b>วิ่ง/รูด 19 ประตู (เด่นสุด):</b> <code>${highlightMain}</code> - <code>${highlightSecondary}</code>
+🎯 <b>2 ตัวบน (5 ชุดคัดพิเศษ):</b> <code>${topPairs}</code>
+🎯 <b>2 ตัวล่าง:</b> <code>${bottomPairs}</code>
 
 👑 <b>ฟันธง 3 ตัวเต็ง เม็ดเดียว:</b> 🌟 <code>${main3D}</code> 🌟
 💎 <b>ชุด 6 กลับ (เต็ง-โต๊ด):</b> <code>${conv3D.permutations6.join(' - ')}</code>
 
-🛡️ <b>พอร์ต 15 ชุด Hybrid V2 (10 ชุดหลัก + 5 ชุดเกราะกันเบิ้ล):</b>
+🛡️ <b>พอร์ต 15 ชุด V3 (13 ชุดหลัก + ${doubleShieldList.length} เกราะกันเบิ้ล):</b>
 🥇 <b>Tier 1 (เม็ดทอง):</b> <code>${portfolio15.tier1Gold.join(' - ')}</code>
 🥈 <b>Tier 2 (เม็ดเงิน):</b> <code>${portfolio15.tier2Silver.join(' - ')}</code>
-🥉 <b>Tier 3 (แกนเสริม + กันเบิ้ล):</b> <code>${portfolio15.tier3Shield.join(' - ')}</code>${
-    doubleShieldList.length > 0 ? `\n🛡️ <b>เกราะกันเบิ้ล/หาม:</b> <code>${doubleShieldList.join(' - ')}</code>` : ''
+🥉 <b>Tier 3 (หลักเสริม + กันเบิ้ล):</b> <code>${portfolio15.tier3Shield.join(' - ')}</code>${
+    doubleShieldList.length > 0 ? `\n🛡️ <b>เกราะกันเบิ้ล:</b> <code>${doubleShieldList.join(' - ')}</code>` : ''
   }
 
 ⭐ <b>4 ตัวแจ็กพอตเสริม:</b> <code>${main4D}</code>
-⭐ <b>เลขเด่น:</b> ${highlightMain}  |  <b>เลขรอง:</b> ${highlightSecondary}  |  <b>วิ่ง/รูด:</b> ${highlightMain} - ${highlightSecondary}
-🎯 <b>2 ตัวบน:</b> <code>${topPairs}</code>
-🎯 <b>2 ตัวล่าง:</b> <code>${bottomPairs}</code>
 🐉 <b>นามสัตว์มงคล:</b> ${animalMain} / ${animalBackup}
 
 ⚠️ <i>ระบบปิดรับแทงประมาณ 20:00 น. ขอให้สมาชิกทุกท่านเฮงๆ ปังๆ ครับ!</i> 💰✨`;

@@ -17,9 +17,9 @@ function buildAnalysisFromStats(statsData: ComprehensiveStats, upcomingData: Upc
   const conv3D = statsData.threeDigitConviction;
   const conv4D = statsData.fourDigitConviction;
   const portfolio15 = conv3D.fifteenSetsPortfolio;
-  const highlightMain = String(statsData.hotDigits[0] ?? conv3D.mainPick[0] ?? '0');
-  const highlightSecondary = String(statsData.hotDigits[1] ?? conv3D.mainPick[1] ?? '0');
-  const thirdRun = String(statsData.hotDigits[2] ?? conv3D.mainPick[2] ?? '0');
+  const highlightMain = String(statsData.recommendedRunDigits?.[0] ?? statsData.hotDigits[0] ?? conv3D.mainPick[0] ?? '0');
+  const highlightSecondary = String(statsData.recommendedRunDigits?.[1] ?? statsData.hotDigits[1] ?? conv3D.mainPick[1] ?? '0');
+  const thirdRun = String(statsData.recommendedRunDigits?.[2] ?? statsData.hotDigits[2] ?? conv3D.mainPick[2] ?? '0');
   const topList = conv3D.derivedTwoDigits?.topList || [conv3D.derivedTwoDigits.top];
   const bottomList = conv3D.derivedTwoDigits?.bottomList || [conv3D.derivedTwoDigits.bottom];
   const animalMain = conv3D.animalLink;
@@ -58,7 +58,7 @@ function buildAnalysisFromStats(statsData: ComprehensiveStats, upcomingData: Upc
       expertConsensus: 7,
       aiDeep: 12,
     },
-    facebookPostContent: `🇱🇦 สรุปแนวทางหวยลาวพัฒนา ประจำ${upcomingData.drawDateThai} 🇱🇦\n(Dynamic Engine V2: 10 ชุดหลัก + ${doubleShieldList.length} ชุดเกราะกันเบิ้ล จาก ${statsData.totalDraws} งวดสถิติ)\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${conv3D.mainPick} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${conv3D.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุดเต็งตรง (Hybrid กันหลุด + กันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทองเน้นหนัก): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงินเต็งรอง): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (แกนเสริม + เกราะกันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n${doubleShieldList.length > 0 ? `🛡️ เกราะกันเบิ้ล/หาม: ${doubleShieldList.join(' - ')}\n` : ''}\n⭐ 4 ตัวแจ็กพอตเสริม: ${conv3D.fourDigitJackpot}\n⭐ เลขเด่น: ${highlightMain}  |  เลขรอง: ${highlightSecondary}  |  วิ่ง/รูด: ${highlightMain} - ${highlightSecondary}\n\n🎯 เจาะ 2 ตัวบน: ${topList.slice(0, 3).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomList.slice(0, 3).join(' - ')}\n\n🐉 นามสัตว์มงคล: ${animalMain.name} (${animalMain.number}) / ${animalBackup.name} (${animalBackup.number})\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและความน่าจะเป็น\n#หวยลาว #แนวทางหวยลาว #3ตัวเต็ง #15ชุดกันหลุด #หวยพัฒนา #เลขเด็ดหวยลาว #หวยลาววันนี้ #สถิติหวยลาว`,
+    facebookPostContent: `🇱🇦 สรุปแนวทางหวยลาวพัฒนา ประจำ${upcomingData.drawDateThai} 🇱🇦\n(Engine V3 Mean-Reversion + Due-Gap จาก ${statsData.totalDraws} งวด • Backtest วิ่ง/รูด ${statsData.backtestReport.run2Rate}%)\n\n⭐ วิ่ง / รูด 19 ประตู (ตัวทำกำไรหลัก): ${highlightMain} - ${highlightSecondary}\n🎯 เจาะ 2 ตัวบน (5 ชุดคัดพิเศษ): ${topList.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomList.slice(0, 4).join(' - ')}\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${conv3D.mainPick} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${conv3D.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (13 ชุดหลัก + ${doubleShieldList.length} เกราะกันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทอง): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงิน): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (หลักเสริม + กันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n\n⭐ 4 ตัวแจ็กพอตเสริม: ${conv3D.fourDigitJackpot}\n🐉 นามสัตว์มงคล: ${animalMain.name} (${animalMain.number}) / ${animalBackup.name} (${animalBackup.number})\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและความน่าจะเป็น\n#หวยลาว #แนวทางหวยลาว #วิ่งรูดหวยลาว #2ตัวบน #15ชุดกันหลุด #หวยพัฒนา #สถิติหวยลาว`,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -466,8 +466,8 @@ export default function App() {
           <BannerCardStudio
             bannerData={{
               drawDateThai: analysis?.targetDrawDateThai || upcoming.drawDateThai,
-              highlightMain: analysis?.highlightMain || String(stats.hotDigits[0] ?? '0'),
-              highlightSecondary: analysis?.highlightSecondary || String(stats.hotDigits[1] ?? '0'),
+              highlightMain: analysis?.highlightMain || String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? '0'),
+              highlightSecondary: analysis?.highlightSecondary || String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? '0'),
               twoDigitsTop: analysis?.twoDigitsTop || stats.threeDigitConviction.derivedTwoDigits.topList,
               twoDigitsBottom: analysis?.twoDigitsBottom || stats.threeDigitConviction.derivedTwoDigits.bottomList,
               threeDigitsDirect: analysis?.threeDigitsDirect || [stats.threeDigitConviction.mainPick, ...stats.threeDigitConviction.supportingPicks],

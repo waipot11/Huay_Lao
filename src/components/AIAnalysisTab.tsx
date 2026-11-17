@@ -117,8 +117,8 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
   // Secondary 4-Digit Jackpot (ตัวเสริม)
   const conviction4D = analysis?.fourDigitConviction || stats.fourDigitConviction;
   const main4D = conviction4D.mainPick || threeConviction.fourDigitJackpot;
-  const highlightMain = analysis?.highlightMain || String(stats.hotDigits[0] ?? main3D[0] ?? '0');
-  const highlightSecondary = analysis?.highlightSecondary || String(stats.hotDigits[1] ?? main3D[1] ?? '0');
+  const highlightMain = analysis?.highlightMain || String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? main3D[0] ?? '0');
+  const highlightSecondary = analysis?.highlightSecondary || String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? main3D[1] ?? '0');
   const runningPair = analysis?.runningDigits || [highlightMain, highlightSecondary];
   const topPairsList = analysis?.twoDigitsTop || threeConviction.derivedTwoDigits.topList || [threeConviction.derivedTwoDigits.top];
   const bottomPairsList = analysis?.twoDigitsBottom || threeConviction.derivedTwoDigits.bottomList || [threeConviction.derivedTwoDigits.bottom];
@@ -126,6 +126,7 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
   const animalBackup = analysis?.animalPicks?.[1] || threeConviction.animalBackup || { name: conviction4D.animalLink.name, number: conviction4D.animalLink.number };
   const lastReview = conviction4D.lastDrawReview;
   const autopsy = conviction4D.systemAutopsy;
+  const backtest = stats.backtestReport;
 
   const handleCopyPermutations3D = () => {
     if (!threeConviction?.permutations6) return;
@@ -453,9 +454,104 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-xs text-emerald-400 bg-emerald-950/70 border border-emerald-600/80 px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 shadow-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Dynamic Engine V2 + เกราะกันเบิ้ล ({doubleShieldCount} ชุด)</span>
+              <span>Engine V3 • Backtest วิ่ง/รูด {backtest.run2Rate}% ({doubleShieldCount} กันเบิ้ล)</span>
             </span>
           </div>
+        </div>
+
+        {/* Walk-Forward Out-of-Sample Backtest Scoreboard (V2 vs V3) */}
+        <div className="bg-slate-950/90 border border-emerald-500/40 rounded-2xl p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+              <BarChart2 className="w-4 h-4 text-emerald-400" />
+              <span>ผลทดสอบความแม่นยำย้อนหลังจริงแบบ Walk-Forward ({backtest.testedDraws} งวดล่าสุด — ไม่แอบดูเฉลย)</span>
+            </span>
+            <span className="text-[11px] font-mono text-slate-400">
+              V2 เดิม: วิ่ง/รูด {backtest.v2BaselineRun2Rate}% • 2ตัวบน 0% • โต๊ด 3.3%
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+            <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3">
+              <div className="text-[11px] text-emerald-200/80">วิ่ง / รูด 2 ตัว ({highlightMain}, {highlightSecondary})</div>
+              <div className="text-lg sm:text-xl font-black text-emerald-400 font-mono">
+                {backtest.run2Rate}%
+              </div>
+              <div className="text-[11px] text-slate-400">
+                เข้า {backtest.run2Hits}/{backtest.testedDraws} งวด (เดิม {backtest.v2BaselineRun2Rate}%)
+              </div>
+            </div>
+
+            <div className="bg-sky-950/40 border border-sky-500/30 rounded-xl p-3">
+              <div className="text-[11px] text-sky-200/80">เจาะ 2 ตัวบน (5 ชุดคัดพิเศษ)</div>
+              <div className="text-lg sm:text-xl font-black text-sky-400 font-mono">
+                {backtest.twoTop5Rate}%
+              </div>
+              <div className="text-[11px] text-slate-400">
+                เข้า {backtest.twoTop5Hits}/{backtest.testedDraws} งวด (เดิม 0.0%)
+              </div>
+            </div>
+
+            <div className="bg-amber-950/40 border border-amber-500/30 rounded-xl p-3">
+              <div className="text-[11px] text-amber-200/80">พอร์ต 15 ชุด (เข้าโต๊ด/6กลับ)</div>
+              <div className="text-lg sm:text-xl font-black text-amber-400 font-mono">
+                {backtest.toad15Rate}%
+              </div>
+              <div className="text-[11px] text-slate-400">
+                เข้า {backtest.toad15Hits}/{backtest.testedDraws} งวด (ตรง {backtest.direct15Hits} งวด)
+              </div>
+            </div>
+
+            <div className="bg-purple-950/40 border border-purple-500/30 rounded-xl p-3">
+              <div className="text-[11px] text-purple-200/80">วิ่งกัน 3 ตัว ({runningPair.join(', ')})</div>
+              <div className="text-lg sm:text-xl font-black text-purple-400 font-mono">
+                {backtest.run3Rate}%
+              </div>
+              <div className="text-[11px] text-slate-400">
+                เข้า {backtest.run3Hits}/{backtest.testedDraws} งวดย้อนหลัง
+              </div>
+            </div>
+          </div>
+
+          {/* Last 6 Draws Audit Strip */}
+          {backtest.recentAudits.length > 0 && (
+            <div className="pt-1 overflow-x-auto">
+              <table className="w-full text-[11px] text-left border-collapse">
+                <thead>
+                  <tr className="text-slate-400 border-b border-slate-800">
+                    <th className="py-1.5 pr-3">งวด</th>
+                    <th className="py-1.5 pr-3">ผลจริง 3 ตัว</th>
+                    <th className="py-1.5 pr-3">V3 วางวิ่ง/รูด</th>
+                    <th className="py-1.5 pr-3">V3 วาง 2 ตัวบน (5 ชุด)</th>
+                    <th className="py-1.5">ผลทดสอบย้อนหลัง</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {backtest.recentAudits.map((row) => (
+                    <tr key={row.drawDate} className="text-slate-300">
+                      <td className="py-1.5 pr-3 whitespace-nowrap">{row.drawDateThai}</td>
+                      <td className="py-1.5 pr-3 font-mono font-bold text-white">{row.actual3D}</td>
+                      <td className="py-1.5 pr-3 font-mono text-amber-300">{row.predictedRun2.join(' / ')}</td>
+                      <td className="py-1.5 pr-3 font-mono text-slate-400">{row.predictedTop5.join(', ')}</td>
+                      <td className="py-1.5 whitespace-nowrap">
+                        {row.hit15Direct ? (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">เข้า 3 ตัวตรง!</span>
+                        ) : row.hit2Top5 ? (
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">เข้า 2 ตัวบน + วิ่ง!</span>
+                        ) : row.hit15Toad ? (
+                          <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold">เข้าโต๊ด 15 ชุด!</span>
+                        ) : row.hitRun2 ? (
+                          <span className="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-700/60">เข้าวิ่ง/รูด</span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-500">หลุดรอบนี้</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Latest Draw Honest Audit + Historical Comparison */}
@@ -519,7 +615,7 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
         <div className="pt-2">
           <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2.5 flex items-center gap-2">
             <Zap className="w-4 h-4 text-amber-400" />
-            <span>การผ่าตัดแก้ไขจุดบอดเชิงโครงสร้าง (Surgical Repairs V2):</span>
+            <span>การผ่าตัดแก้ไขจุดบอดเชิงโครงสร้าง (Surgical Repairs V3):</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
@@ -579,7 +675,7 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
                   ฟันธง 3 ตัวเต็ง เม็ดเดียว & ชุด 6 ประตูการันตี
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold font-mono">
-                  ความแม่นยำ {threeConviction.confidenceScore}% (3 ตัวเต็ง)
+                  Backtest วิ่ง/รูด {backtest.run2Rate}% | โต๊ด {backtest.toad15Rate}%
                 </span>
               </div>
               <p className="text-xs text-amber-200/90 mt-1">
@@ -1543,14 +1639,14 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
               <div className="flex flex-col items-center">
                 <span className="text-xs text-amber-200/80 mb-1 font-medium">เด่นตัวเดียว</span>
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-600 to-yellow-400 text-slate-950 font-black text-3xl flex items-center justify-center shadow-lg shadow-amber-500/30 font-mono-tabular">
-                  {analysis?.highlightMain || stats.hotDigits[0] || '7'}
+                  {analysis?.highlightMain || stats.recommendedRunDigits?.[0] || stats.hotDigits[0] || '5'}
                 </div>
               </div>
 
               <div className="flex flex-col items-center">
                 <span className="text-xs text-blue-200/80 mb-1 font-medium">เลขรอง</span>
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 text-slate-950 font-black text-3xl flex items-center justify-center shadow-lg shadow-blue-500/30 font-mono-tabular">
-                  {analysis?.highlightSecondary || stats.hotDigits[1] || '4'}
+                  {analysis?.highlightSecondary || stats.recommendedRunDigits?.[1] || stats.hotDigits[1] || '7'}
                 </div>
               </div>
             </div>

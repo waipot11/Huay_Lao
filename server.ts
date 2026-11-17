@@ -140,8 +140,8 @@ function loadPosts(): ScheduledPost[] {
   const stats = computeComprehensiveStats(draws);
   const conv3D = stats.threeDigitConviction;
   const conv4D = stats.fourDigitConviction;
-  const mainD = String(stats.hotDigits[0] ?? conv3D.mainPick[0]);
-  const secD = String(stats.hotDigits[1] ?? conv3D.mainPick[1]);
+  const mainD = String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? conv3D.mainPick[0]);
+  const secD = String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? conv3D.mainPick[1]);
   const top2List = conv3D.derivedTwoDigits.topList || [conv3D.derivedTwoDigits.top];
   const bot2List = conv3D.derivedTwoDigits.bottomList || [conv3D.derivedTwoDigits.bottom];
 
@@ -153,7 +153,7 @@ function loadPosts(): ScheduledPost[] {
       drawDateThai: upcoming.drawDateThai,
       scheduledTime: `${upcoming.postScheduledDate}T09:30:00`,
       status: 'scheduled',
-      content: `🇱🇦 สรุปแนวทางหวยลาวพัฒนา ประจำ${upcoming.drawDateThai} 🇱🇦\n(คำนวณสดจากสถิติ ${stats.totalDraws} งวด + สูตรพอร์ต 15 ชุด V2 กันหลุดเลขเบิ้ล)\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${conv3D.mainPick} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${conv3D.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุดเต็งตรง (10 ชุดหลัก + 5 ชุดเกราะกันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทองเน้นหนัก): ${conv3D.fifteenSetsPortfolio.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงินเต็งรอง): ${conv3D.fifteenSetsPortfolio.tier2Silver.join(' - ')}\n🥉 Tier 3 (เกราะกันหลุด & กันเบิ้ล): ${conv3D.fifteenSetsPortfolio.tier3Shield.join(' - ')}\n\n⭐ 4 ตัวแจ็กพอตเสริม: ${conv3D.fourDigitJackpot}\n⭐ เลขเด่น: ${mainD}  |  เลขรอง: ${secD}  |  วิ่ง/รูด: ${mainD} - ${secD}\n\n🎯 เจาะ 2 ตัวบน: ${top2List.slice(0, 3).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bot2List.slice(0, 3).join(' - ')}\n\n🐉 นามสัตว์มงคล: ${conv3D.animalLink.name} (${conv3D.animalLink.number}) / ${conv3D.animalBackup.name} (${conv3D.animalBackup.number})\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณจากสถิติย้อนหลังและโมเดลปัญญาประดิษฐ์\n#หวยลาว #แนวทางหวยลาว #3ตัวเต็ง #15ชุดกันหลุด #หวยลาววันนี้ #หวยพัฒนา #สถิติหวยลาว #เลขเด็ด`,
+      content: `🇱🇦 สรุปแนวทางหวยลาวพัฒนา ประจำ${upcoming.drawDateThai} 🇱🇦\n(Engine V3 Mean-Reversion + Due-Gap จาก ${stats.totalDraws} งวด • Backtest วิ่ง/รูด ${stats.backtestReport.run2Rate}%)\n\n⭐ วิ่ง / รูด 19 ประตู (ตัวทำกำไรหลัก): ${mainD} - ${secD}\n🎯 เจาะ 2 ตัวบน (5 ชุดคัดพิเศษ): ${top2List.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bot2List.slice(0, 4).join(' - ')}\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${conv3D.mainPick} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${conv3D.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (13 ชุดหลัก + 2 เกราะกันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทอง): ${conv3D.fifteenSetsPortfolio.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงิน): ${conv3D.fifteenSetsPortfolio.tier2Silver.join(' - ')}\n🥉 Tier 3 (หลักเสริม + กันเบิ้ล): ${conv3D.fifteenSetsPortfolio.tier3Shield.join(' - ')}\n\n⭐ 4 ตัวแจ็กพอตเสริม: ${conv3D.fourDigitJackpot}\n🐉 นามสัตว์มงคล: ${conv3D.animalLink.name} (${conv3D.animalLink.number}) / ${conv3D.animalBackup.name} (${conv3D.animalBackup.number})\n\n📌 ข้อมูลคำนวณตามหลักสถิติย้อนหลัง โปรดเสี่ยงโชคอย่างมีสติ\n#หวยลาว #แนวทางหวยลาว #วิ่งรูดหวยลาว #2ตัวบน #15ชุดกันหลุด #หวยพัฒนา #สถิติหวยลาว`,
       highlightNumbers: {
         main: mainD,
         secondary: secD,
@@ -303,16 +303,16 @@ app.get('/api/stats', (_req: Request, res: Response) => {
   });
 });
 
-// 3. AI Analysis with Gemini 3.8 Flash
+// 3. AI Analysis with Gemini 4 Hydrogen + Engine V3 Baseline
 app.post('/api/ai/analyze', async (req: Request, res: Response) => {
   const draws = getAllDraws();
   const stats = computeComprehensiveStats(draws);
   const upcoming = getUpcomingLaoDraw(new Date(), fbConfig.daysAhead || 5, draws);
   const defaultConv3D = stats.threeDigitConviction;
   const defaultConv4D = stats.fourDigitConviction;
-  const mainD = String(stats.hotDigits[0] ?? defaultConv3D.mainPick[0]);
-  const secD = String(stats.hotDigits[1] ?? defaultConv3D.mainPick[1]);
-  const thirdD = String(stats.hotDigits[2] ?? defaultConv3D.mainPick[2]);
+  const mainD = String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? defaultConv3D.mainPick[0]);
+  const secD = String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? defaultConv3D.mainPick[1]);
+  const thirdD = String(stats.recommendedRunDigits?.[2] ?? stats.hotDigits[2] ?? defaultConv3D.mainPick[2]);
 
   try {
     const { targetDate, customWeights, focusDay } = req.body || {};
@@ -321,43 +321,36 @@ app.post('/api/ai/analyze', async (req: Request, res: Response) => {
     const day = focusDay || upcoming.dayOfWeekThai;
     const latestDraw = draws[0];
 
-    // Prepare prompt with dynamic data from all 10 statistical sources
-    const systemPrompt = `คุณคือผู้เชี่ยวชาญด้านคณิตศาสตร์สถิติและการวิเคราะห์ตัวเลขสำหรับ "หวยลาวพัฒนา" (ຫວຍພັດທະນາ)
+    const systemPrompt = `คุณคือผู้เชี่ยวชาญด้านคณิตศาสตร์สถิติและการวิเคราะห์ตัวเลขสำหรับ "หวยลาวพัฒนา" (Engine V3 Mean-Reversion + Positional Due-Gap)
 ผลรางวัลล่าสุด: ${latestDraw.drawDateThai} ออก 3 ตัวท้าย "${latestDraw.threeDigitsTop}" (2 ตัวท้าย ${latestDraw.twoDigitsTop}, สัตว์ ${latestDraw.animalName || '-'})
-อัตราการออกเลขเบิ้ล/หามใน 3 ตัวท้ายย้อนหลัง: ${stats.double3DRatePercent}%
+ผล Walk-Forward Backtest ย้อนหลัง ${stats.backtestReport.testedDraws} งวด: วิ่ง/รูด 2 ตัวเข้า ${stats.backtestReport.run2Rate}% | 2 ตัวบน 5 ชุดเข้า ${stats.backtestReport.twoTop5Rate}% | โต๊ด 15 ชุดเข้า ${stats.backtestReport.toad15Rate}%
 
-ข้อมูลจากเครื่องยนต์คำนวณ 10 มิติสำหรับงวดเป้าหมาย ${drawDateThai} (${day}):
-1. สถิติความถี่ ${stats.totalDraws} งวด: เลขมาแรง ${stats.hotDigits.join(', ')}, เลขออกน้อย ${stats.killDigits.join(', ')}
+ข้อมูลจากเครื่องยนต์ V3 สำหรับงวดเป้าหมาย ${drawDateThai} (${day}):
+1. เลขค้างรอบเด่นสำหรับวิ่ง/รูด (Due-Gap Rebound): ${stats.recommendedRunDigits.join(', ')}
 2. สถิติเฉพาะ${day}: เด่นประจำวัน ${stats.dayStats[upcoming.dayOfWeek]?.topDigits.map((t) => t.digit).join(', ')}
-3. มหาทักษาเทวฤทธิ์: กำลังวัน ${stats.dayStats[upcoming.dayOfWeek]?.kamlangWan || 15} (เลขมงคล ${stats.dayStats[upcoming.dayOfWeek]?.auspiciousDigits.join(', ')})
-4. เลขไหล 3 งวดหลังสุด (Flow Momentum): ${stats.flowDigits.join(', ')}
-5. ชุดหลักจากการคำนวณ Matrix (Baseline Engine):
+3. เลขล่าสุด 3 งวด (Flow): ${stats.flowDigits.join(', ')}
+4. ชุดหลักจาก V3 Matrix:
    - 3 ตัวเต็งแนะนำ: ${defaultConv3D.mainPick}
    - ชุด 6 กลับ: ${defaultConv3D.permutations6.join(', ')}
-   - พอร์ต 15 ชุด (10 ชุดตรง + 5 ชุดเกราะกันเบิ้ล): ${defaultConv3D.wheeling15Sets.join(', ')}
-   - 5 ชุดเกราะกันเบิ้ล (Double Shield): ${defaultConv3D.doubleShieldSets.join(', ')}
-   - 4 ตัวแจ็กพอตเสริม: ${defaultConv3D.fourDigitJackpot}
-   - 2 ตัวบน: ${defaultConv3D.derivedTwoDigits.topList.join(', ')} | 2 ตัวล่าง: ${defaultConv3D.derivedTwoDigits.bottomList.join(', ')}
+   - พอร์ต 15 ชุด V3 (13 ชุดหลัก + 2 เกราะกันเบิ้ล): ${defaultConv3D.wheeling15Sets.join(', ')}
+   - 2 ตัวบนเด่น (00-99 Matrix): ${defaultConv3D.derivedTwoDigits.topList.join(', ')}
+   - 2 ตัวล่างเด่น: ${defaultConv3D.derivedTwoDigits.bottomList.join(', ')}
 
-จงวิเคราะห์และปรับเทียบผลลัพธ์โดยไม่ยึดติดเลขงวดเก่า และส่งผลลัพธ์เป็น JSON ตามโครงสร้างต่อไปนี้:
+ส่งผลลัพธ์เป็น JSON ตามโครงสร้างนี้ (ห้ามเปลี่ยนเลขวิ่ง/รูดหลักให้เพี้ยนจาก V3 Backtest):
 {
   "highlightMain": "${mainD}",
   "highlightSecondary": "${secD}",
   "runningDigits": ["${mainD}", "${secD}", "${thirdD}"],
   "threeDigitConviction": {
-    "mainPick": "ชุด 3 ตัวเต็งที่แม่นยำที่สุด",
-    "confidenceScore": 96,
-    "positionBreakdown": {
-      "hundreds": { "digit": "X", "reason": "คำอธิบายหลักร้อย" },
-      "tens": { "digit": "Y", "reason": "คำอธิบายหลักสิบ" },
-      "units": { "digit": "Z", "reason": "คำอธิบายหลักหน่วย" }
-    },
-    "supportingPicks": ["...", "...", "..."],
-    "permutations6": ["...", "..."],
-    "wheeling4Digits": ["..."],
-    "wheeling4Sets": ["..."],
-    "wheeling5Digits": ["..."],
-    "wheeling5Sets": ["..."],
+    "mainPick": "${defaultConv3D.mainPick}",
+    "confidenceScore": ${defaultConv3D.confidenceScore},
+    "positionBreakdown": ${JSON.stringify(defaultConv3D.positionBreakdown)},
+    "supportingPicks": ${JSON.stringify(defaultConv3D.supportingPicks)},
+    "permutations6": ${JSON.stringify(defaultConv3D.permutations6)},
+    "wheeling4Digits": ${JSON.stringify(defaultConv3D.wheeling4Digits)},
+    "wheeling4Sets": ${JSON.stringify(defaultConv3D.wheeling4Sets)},
+    "wheeling5Digits": ${JSON.stringify(defaultConv3D.wheeling5Digits)},
+    "wheeling5Sets": ${JSON.stringify(defaultConv3D.wheeling5Sets)},
     "derivedTwoDigits": {
       "top": "${defaultConv3D.derivedTwoDigits.top}",
       "bottom": "${defaultConv3D.derivedTwoDigits.bottom}"
@@ -365,32 +358,39 @@ app.post('/api/ai/analyze', async (req: Request, res: Response) => {
     "fourDigitJackpot": "${defaultConv3D.fourDigitJackpot}",
     "totalSum": ${defaultConv3D.totalSum},
     "animalLink": { "name": "${defaultConv3D.animalLink.name}", "number": "${defaultConv3D.animalLink.number}" },
-    "strategyReason": "คำอธิบายกลยุทธ์ 3 ตัวเต็ง + เกราะกันเบิ้ล"
+    "strategyReason": "คำอธิบายกลยุทธ์ V3 Mean-Reversion + Due-Gap"
   },
-  "fourDigitsSet": ["${defaultConv3D.fourDigitJackpot}", ...],
-  "threeDigitsDirect": ["...", "...", "..."],
-  "threeDigitsSwap": ["...", "..."],
+  "fourDigitsSet": ${JSON.stringify([defaultConv3D.fourDigitJackpot, ...defaultConv4D.supportingPicks])},
+  "threeDigitsDirect": ${JSON.stringify([defaultConv3D.mainPick, ...defaultConv3D.supportingPicks])},
+  "threeDigitsSwap": ${JSON.stringify(defaultConv3D.permutations6.filter((x) => x !== defaultConv3D.mainPick))},
   "twoDigitsTop": ${JSON.stringify(defaultConv3D.derivedTwoDigits.topList)},
   "twoDigitsBottom": ${JSON.stringify(defaultConv3D.derivedTwoDigits.bottomList)},
   "animalPicks": [
-    { "name": "${defaultConv3D.animalLink.name}", "number": "${defaultConv3D.animalLink.number}", "reason": "สอดคล้อง 2 ตัวบน" },
-    { "name": "${defaultConv3D.animalBackup.name}", "number": "${defaultConv3D.animalBackup.number}", "reason": "สอดคล้อง 2 ตัวล่าง" }
+    { "name": "${defaultConv3D.animalLink.name}", "number": "${defaultConv3D.animalLink.number}", "reason": "สอดคล้อง 2 ตัวบน V3" },
+    { "name": "${defaultConv3D.animalBackup.name}", "number": "${defaultConv3D.animalBackup.number}", "reason": "สอดคล้อง 2 ตัวล่าง V3" }
   ],
-  "confidenceScore": 96,
-  "rationale": "คำอธิบายสรุปความแม่นยำและวิธีแก้จุดบอดเลขเบิ้ลจากงวด ${latestDraw.threeDigitsTop}",
-  "facebookPostContent": "ข้อความโพสต์ Facebook เต็มรูปแบบ ที่เน้น 3 ตัวเต็ง เม็ดเดียว ชุด 6 กลับ และเกราะกันเบิ้ล พร้อมอิโมจิและแฮชแท็ก"
+  "confidenceScore": ${defaultConv3D.confidenceScore},
+  "rationale": "คำอธิบายกลยุทธ์ Mean-Reversion & Due-Gap สำหรับงวด ${drawDateThai}",
+  "facebookPostContent": "ข้อความโพสต์ Facebook เต็มรูปแบบ ที่เน้น วิ่ง/รูด ${mainD}-${secD}, 2 ตัวบน 5 ชุด, และพอร์ต 15 ชุด V3"
 }`;
 
-    const userPrompt = `กรุณาวิเคราะห์ตัวเลขหวยลาวสำหรับงวด ${drawDateThai} (${day}) หลังผลงวดล่าสุด ${latestDraw.drawDateThai} ออก ${latestDraw.threeDigitsTop} (เบิ้ล ${latestDraw.twoDigitsTop}) โดยสรุป 3 ตัวเต็ง เม็ดเดียว พร้อมพอร์ต 15 ชุดที่มีเกราะกันเลขเบิ้ล และเขียนโพสต์ Facebook ล่วงหน้า 5 วัน`;
+    const userPrompt = `กรุณาสรุปวิเคราะห์ตัวเลขหวยลาว Engine V3 สำหรับงวด ${drawDateThai} (${day}) หลังผลงวดล่าสุด ${latestDraw.drawDateThai} ออก ${latestDraw.threeDigitsTop} โดยเน้นวิ่ง/รูด ${mainD}-${secD} และ 2 ตัวบน 5 ชุด พร้อมข้อความโพสต์ Facebook`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: userPrompt,
-      config: {
-        systemInstruction: systemPrompt,
-        responseMimeType: 'application/json',
-      },
-    });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini request timeout (10s)')), 10000)
+    );
+
+    const response = await Promise.race([
+      ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: userPrompt,
+        config: {
+          systemInstruction: systemPrompt,
+          responseMimeType: 'application/json',
+        },
+      }),
+      timeoutPromise,
+    ]);
 
     const text = response.text || '{}';
     let parsedData: any;
@@ -806,28 +806,30 @@ function buildDefaultTelegramMessage(
 ) {
   const conv3D = stats.threeDigitConviction;
   const timeInfo = computeTargetAlertTime(telegramConfig.hoursAhead, telegramConfig.customAlertTime);
-  const mainD = String(stats.hotDigits[0] ?? conv3D.mainPick[0]);
-  const secD = String(stats.hotDigits[1] ?? conv3D.mainPick[1]);
-  const top2Str = (conv3D.derivedTwoDigits.topList || [conv3D.derivedTwoDigits.top]).slice(0, 3).join(' - ');
-  const bot2Str = (conv3D.derivedTwoDigits.bottomList || [conv3D.derivedTwoDigits.bottom]).slice(0, 3).join(' - ');
+  const mainD = String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? conv3D.mainPick[0]);
+  const secD = String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? conv3D.mainPick[1]);
+  const top2Str = (conv3D.derivedTwoDigits.topList || [conv3D.derivedTwoDigits.top]).slice(0, 5).join(' - ');
+  const bot2Str = (conv3D.derivedTwoDigits.bottomList || [conv3D.derivedTwoDigits.bottom]).slice(0, 4).join(' - ');
   const doubleShields = (conv3D.doubleShieldSets || conv3D.fifteenSetsPortfolio.doubleShieldSets || []).join(' - ');
 
   return `🇱🇦<b>【 แจ้งเตือนสมาชิกกลุ่ม! หวยลาวพัฒนาออกวันนี้ 】</b>🇱🇦
 ⏰ เวลาแจ้งเตือน ${timeInfo.label} (หวยออกเวลา 20:30 น.)
 📅 งวดประจำ${escapeHtml(upcoming.drawDateThai)}
+📊 <i>Engine V3 Mean-Reversion (Backtest 35 งวด: วิ่ง/รูด ${stats.backtestReport.run2Rate}%)</i>
+
+⭐ <b>วิ่ง/รูด 19 ประตู (เด่นสุด):</b> <code>${mainD}</code> - <code>${secD}</code>
+🎯 <b>2 ตัวบน (5 ชุดคัดพิเศษ):</b> <code>${top2Str}</code>
+🎯 <b>2 ตัวล่าง:</b> <code>${bot2Str}</code>
 
 👑 <b>ฟันธง 3 ตัวเต็ง เม็ดเดียว:</b> 🌟 <code>${conv3D.mainPick}</code> 🌟
 💎 <b>ชุด 6 กลับ (เต็ง-โต๊ด):</b> <code>${conv3D.permutations6.join(' - ')}</code>
 
-🛡️ <b>พอร์ต 15 ชุด Hybrid V2 (10 ชุดหลัก + 5 ชุดเกราะกันเบิ้ล):</b>
+🛡️ <b>พอร์ต 15 ชุด V3 (13 ชุดหลัก + 2 เกราะกันเบิ้ล):</b>
 🥇 <b>Tier 1 (เม็ดทอง):</b> <code>${conv3D.fifteenSetsPortfolio.tier1Gold.join(' - ')}</code>
 🥈 <b>Tier 2 (เม็ดเงิน):</b> <code>${conv3D.fifteenSetsPortfolio.tier2Silver.join(' - ')}</code>
-🥉 <b>Tier 3 (แกนเสริม + กันเบิ้ล):</b> <code>${conv3D.fifteenSetsPortfolio.tier3Shield.join(' - ')}</code>${doubleShields ? `\n🛡️ <b>เกราะกันเบิ้ล/หาม:</b> <code>${doubleShields}</code>` : ''}
+🥉 <b>Tier 3 (หลักเสริม + กันเบิ้ล):</b> <code>${conv3D.fifteenSetsPortfolio.tier3Shield.join(' - ')}</code>${doubleShields ? `\n🛡️ <b>เกราะกันเบิ้ล:</b> <code>${doubleShields}</code>` : ''}
 
 ⭐ <b>4 ตัวแจ็กพอตเสริม:</b> <code>${conv3D.fourDigitJackpot}</code>
-⭐ <b>เลขเด่น:</b> ${mainD}  |  <b>เลขรอง:</b> ${secD}  |  <b>วิ่ง/รูด:</b> ${mainD} - ${secD}
-🎯 <b>2 ตัวบน:</b> <code>${top2Str}</code>
-🎯 <b>2 ตัวล่าง:</b> <code>${bot2Str}</code>
 🐉 <b>นามสัตว์มงคล:</b> ${escapeHtml(conv3D.animalLink.name)} (${conv3D.animalLink.number}) / ${escapeHtml(conv3D.animalBackup.name)} (${conv3D.animalBackup.number})
 
 ⚠️ <i>ระบบปิดรับแทงประมาณ 20:00 น. ขอให้สมาชิกทุกท่านเฮงๆ ปังๆ ครับ!</i> 💰✨`;
