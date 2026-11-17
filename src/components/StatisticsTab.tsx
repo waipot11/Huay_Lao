@@ -111,7 +111,7 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
           <div className="text-xl font-bold text-amber-400 font-mono-tabular">
             {stats.hotDigits.join('  •  ')}
           </div>
-          <div className="text-[11px] text-slate-400">ออกบ่อยสุดในสถิติ 50 งวด</div>
+          <div className="text-[11px] text-slate-400">คะแนนตีกลับสูงสุดในสถิติ {stats.totalDraws} งวด</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-1">
@@ -240,32 +240,40 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80 bg-slate-900/60">
-                {filteredDraws.map((draw) => (
-                  <tr key={draw.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-2.5 px-4 text-slate-200 whitespace-nowrap">{draw.drawDateThai}</td>
-                    <td className="py-2.5 px-3">
-                      <span className="text-[11px] text-slate-400">{draw.dayOfWeekThai}</span>
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-mono text-slate-400 tabular-nums">
-                      {draw.sixDigits}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-mono font-bold text-amber-300 tabular-nums">
-                      {draw.fourDigits}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-medium text-blue-300 tabular-nums">
-                      {draw.threeDigitsTop}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-300 tabular-nums">
-                      {draw.twoDigitsTop}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-purple-300 tabular-nums">
-                      {draw.twoDigitsBottom}
-                    </td>
-                    <td className="py-2.5 px-4 text-slate-300 whitespace-nowrap">
-                      {draw.animalName ? `${draw.animalName} (${draw.animalNumber})` : '-'}
+                {filteredDraws.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 px-4 text-center text-slate-400 text-xs">
+                      ยังไม่มีข้อมูลงวดที่ตรงกับตัวกรองนี้ในฐานข้อมูล (หากเป็นงวดวันอังคารหรือวันพฤหัสบดี กรุณากดปุ่ม "บันทึกผลหวยงวดล่าสุด" ด้านบนเพื่อเพิ่มสถิติ)
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredDraws.map((draw) => (
+                    <tr key={draw.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-2.5 px-4 text-slate-200 whitespace-nowrap">{draw.drawDateThai}</td>
+                      <td className="py-2.5 px-3">
+                        <span className="text-[11px] text-slate-400">{draw.dayOfWeekThai}</span>
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-mono text-slate-400 tabular-nums">
+                        {draw.sixDigits}
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-mono font-bold text-amber-300 tabular-nums">
+                        {draw.fourDigits}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-medium text-blue-300 tabular-nums">
+                        {draw.threeDigitsTop}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-300 tabular-nums">
+                        {draw.twoDigitsTop}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-purple-300 tabular-nums">
+                        {draw.twoDigitsBottom}
+                      </td>
+                      <td className="py-2.5 px-4 text-slate-300 whitespace-nowrap">
+                        {draw.animalName ? `${draw.animalName} (${draw.animalNumber})` : '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -279,7 +287,7 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Hash className="w-4 h-4 text-amber-400" />
-              <span>ความถี่ตัวเลข 0 - 9 ทั้งหมดในรอบ 50 งวด</span>
+              <span>ความถี่ตัวเลข 0 - 9 ทั้งหมดในรอบ {stats.totalDraws} งวด</span>
             </h3>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -390,14 +398,20 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
                 </div>
 
                 <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
-                  <span className="text-xs text-slate-400">สถิติจริง 3 อันดับแรกในงวด{d.dayThai}:</span>
-                  <div className="flex items-center gap-3 text-xs text-slate-300">
-                    {d.topDigits.map((td) => (
-                      <span key={td.digit} className="font-mono-tabular">
-                        เลข <strong className="text-white">{td.digit}</strong> ({td.count} ครั้ง)
-                      </span>
-                    ))}
-                  </div>
+                  <span className="text-xs text-slate-400">สถิติจริง 3 อันดับแรกในงวด{d.dayThai} ({d.totalDraws} งวด):</span>
+                  {d.totalDraws > 0 ? (
+                    <div className="flex items-center gap-3 text-xs text-slate-300">
+                      {d.topDigits.map((td) => (
+                        <span key={td.digit} className="font-mono-tabular">
+                          เลข <strong className="text-white">{td.digit}</strong> ({td.count} ครั้ง)
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-amber-300/80">
+                      ยังไม่มีสถิติ{d.dayThai}ในฐานข้อมูล (กด "บันทึกผลหวยงวดล่าสุด" เพื่อเริ่มสะสม)
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
