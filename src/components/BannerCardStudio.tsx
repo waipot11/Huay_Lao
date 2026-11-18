@@ -7,6 +7,7 @@ interface BannerData {
   drawDateThai: string;
   highlightMain: string;
   highlightSecondary: string;
+  single19HitRate?: number;
   twoDigitsTop: string[];
   twoDigitsBottom: string[];
   threeDigitsDirect: string[];
@@ -173,16 +174,20 @@ export const BannerCardStudio: React.FC<BannerCardStudioProps> = ({
     ctx.fillStyle = '#F59E0B';
     ctx.font = 'bold 16px Prompt, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('⭐ เด่น - รอง & วิ่ง/รูด:', 105, 345);
+    ctx.fillText(
+      `🔥 รูด 1 ตัว 19 ประตู บน+ล่าง${bannerData.single19HitRate ? ` (Backtest ${bannerData.single19HitRate}%)` : ''}:`,
+      105,
+      345
+    );
 
     ctx.fillStyle = '#FDE68A';
     ctx.font = 'bold 28px JetBrains Mono, monospace';
-    ctx.fillText(`เด่น ${bannerData.highlightMain || '-'}   รอง ${bannerData.highlightSecondary || '-'}`, 105, 385);
+    ctx.fillText(`ตัวเดียวเน้น: ${bannerData.highlightMain || '-'}   กัน: ${bannerData.highlightSecondary || '-'}`, 105, 385);
 
     ctx.fillStyle = '#94A3B8';
     ctx.font = '400 14px Prompt, sans-serif';
     ctx.fillText(
-      `วิ่ง/รูด 19 ประตู: ${bannerData.highlightMain || '-'} - ${bannerData.highlightSecondary || '-'}  •  ฟันเน้นบน: ${bannerData.twoDigitsTop[0] || '--'} / ล่าง: ${bannerData.twoDigitsBottom[0] || '--'}`,
+      `รูดบน-ล่าง 19 ประตูเน้น "${bannerData.highlightMain || '-'}"  •  ฟันเน้นบน: ${bannerData.twoDigitsTop[0] || '--'} / ล่าง: ${bannerData.twoDigitsBottom[0] || '--'}`,
       105,
       410
     );

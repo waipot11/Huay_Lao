@@ -205,11 +205,13 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
   ]);
 
   const conv3D = stats.threeDigitConviction;
+  const single19 = stats.singleDigit19Door;
   const portfolio15 = conv3D.fifteenSetsPortfolio;
   const main3D = conv3D.mainPick;
   const main4D = conv3D.fourDigitJackpot;
-  const highlightMain = String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? main3D[0] ?? '0');
-  const highlightSecondary = String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? main3D[1] ?? '0');
+  const highlightMain = single19?.primaryPick?.digit ?? String(stats.recommendedRunDigits?.[0] ?? main3D[0] ?? '0');
+  const highlightSecondary = single19?.backupPick?.digit ?? String(stats.recommendedRunDigits?.[1] ?? main3D[1] ?? '0');
+  const filterBadge = single19?.passesStandardFilter ? '✅ ผ่านเกณฑ์เกินมาตรฐาน' : '⏳ เฝ้าระวัง';
   const topPairs = (conv3D.derivedTwoDigits?.topList || [conv3D.derivedTwoDigits.top]).slice(0, 5).join(' - ');
   const bottomPairs = (conv3D.derivedTwoDigits?.bottomList || [conv3D.derivedTwoDigits.bottom]).slice(0, 4).join(' - ');
   const animalMain = `${conv3D.animalLink.name} (${conv3D.animalLink.number})`;
@@ -228,13 +230,15 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
   const telegramHtmlPreviewMessage = `${cfg.flag}<b>【 แจ้งเตือนสมาชิกกลุ่ม! ${cfg.name}ออกวันนี้ 】</b>${cfg.flag}
 ⏰ เวลาแจ้งเตือน ${targetNotificationTime} (หวยออกเวลา ${cfg.drawTimeLabel})
 📅 งวดประจำ${upcoming.drawDateThai}
-📊 <i>Engine V3 Mean-Reversion (Backtest ${stats.backtestReport.testedDraws} งวด: วิ่ง/รูด ${stats.backtestReport.run2Rate}%)</i>
+📊 <i>Engine V4 รูด 1 ตัว 19 ประตู บน+ล่าง (Backtest ${single19?.testedDraws ?? 35} งวดจริง: เข้า ${single19?.hitRatePercent ?? 0}% • ${filterBadge})</i>
 
-⭐ <b>วิ่ง/รูด 19 ประตู (เด่นสุด):</b> <code>${highlightMain}</code> - <code>${highlightSecondary}</code>
+🔥 <b>รูด 1 ตัว 19 ประตู บน+ล่าง (ตัวเดียวเน้นๆ):</b> 🌟 <code>${highlightMain}</code> 🌟 (ค้าง ${single19?.primaryPick?.dueGap4Pos ?? '-'} งวด • คะแนน ${single19?.primaryPick?.score ?? '-'})
+🛡️ <b>ตัวกันรอง:</b> <code>${highlightSecondary}</code> (ค้าง ${single19?.backupPick?.dueGap4Pos ?? '-'} งวด)
+
 🎯 <b>2 ตัวบน (5 ชุดคัดพิเศษ):</b> <code>${topPairs}</code>
 🎯 <b>2 ตัวล่าง:</b> <code>${bottomPairs}</code>
 
-👑 <b>ฟันธง 3 ตัวเต็ง เม็ดเดียว:</b> 🌟 <code>${main3D}</code> 🌟
+👑 <b>ฟันธง 3 ตัวเต็ง เม็ดเดียว:</b> <code>${main3D}</code>
 💎 <b>ชุด 6 กลับ (เต็ง-โต๊ด):</b> <code>${conv3D.permutations6.join(' - ')}</code>
 
 🛡️ <b>พอร์ต 15 ชุด V3 (13 ชุดหลัก + ${doubleShieldList.length} เกราะกันเบิ้ล):</b>

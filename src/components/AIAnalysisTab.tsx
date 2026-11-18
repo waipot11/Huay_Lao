@@ -114,12 +114,16 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordFeedback, setRecordFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [liveSyncFeedback, setLiveSyncFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showAll35SingleAudits, setShowAll35SingleAudits] = useState(false);
 
   useEffect(() => {
     setRecordDate(upcoming.drawDate || new Date().toISOString().slice(0, 10));
     setRecordFeedback(null);
     setLiveSyncFeedback(null);
   }, [lotteryType, upcoming.drawDate]);
+
+  // Active Single-Digit 19-Door V4 Winner & 35-Draw Backtest Report
+  const single19 = stats.singleDigit19Door;
 
   // Active 3-Digit Prime Conviction (เต็งๆ เม็ดเดียว)
   const threeConviction = analysis?.threeDigitConviction || stats.threeDigitConviction;
@@ -134,8 +138,8 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
   // Secondary 4-Digit Jackpot (ตัวเสริม)
   const conviction4D = analysis?.fourDigitConviction || stats.fourDigitConviction;
   const main4D = conviction4D.mainPick || threeConviction.fourDigitJackpot;
-  const highlightMain = analysis?.highlightMain || String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? main3D[0] ?? '0');
-  const highlightSecondary = analysis?.highlightSecondary || String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? main3D[1] ?? '0');
+  const highlightMain = single19?.primaryPick?.digit ?? analysis?.highlightMain ?? String(stats.recommendedRunDigits?.[0] ?? main3D[0] ?? '0');
+  const highlightSecondary = single19?.backupPick?.digit ?? analysis?.highlightSecondary ?? String(stats.recommendedRunDigits?.[1] ?? main3D[1] ?? '0');
   const runningPair = analysis?.runningDigits || [highlightMain, highlightSecondary];
   const topPairsList = analysis?.twoDigitsTop || threeConviction.derivedTwoDigits.topList || [threeConviction.derivedTwoDigits.top];
   const bottomPairsList = analysis?.twoDigitsBottom || threeConviction.derivedTwoDigits.bottomList || [threeConviction.derivedTwoDigits.bottom];
@@ -276,15 +280,15 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold">
               <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>{cfg.flag} ระบบคำนวณ Engine V3 • {cfg.name} ({cfg.drawTimeLabel})</span>
+              <span>{cfg.flag} Engine V4 รูด 1 ตัว 19 ประตู บน+ล่าง • {cfg.name} ({cfg.drawTimeLabel})</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
-              วิเคราะห์เลข{cfg.name} & วางเลขเด็ดฟันธง 3 ตัว / {cfg.fourDigitsLabel}
+              เม็ดเดี่ยวรูด 1 ตัว 19 ประตู บน+ล่าง{cfg.shortName} & ชุดเจาะ 2 ตัว / 3 ตัวครบ
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              ยกระดับความแม่นยำด้วย <strong>Mean-Reversion + Positional Due-Gap + Markov Matrix</strong> สำหรับ{cfg.name} ({cfg.drawScheduleLabel}) คำนวณชุดวิ่ง/รูด 2 ตัวบน และพอร์ต 15 ชุดกันเบิ้ลที่มีความน่าจะเป็นสูงสุดประจำงวด
+              รื้อตัวกรองใหม่เน้น <strong>รูด 1 ตัว 19 ประตู บน+ล่าง</strong> คำนวณ 4 ตำแหน่ง (2 ตัวบน + 2 ตัวล่าง) ผ่านตัวกรอง <strong>Backtest {single19.testedDraws} งวดจริงเกินมาตรฐาน ({single19.hitRatePercent}% vs จุดคุ้มทุน 40%)</strong> พร้อมคงชุดเจาะ 2 ตัว / 3 ตัวไว้ครบปกติ
             </p>
 
             <div className="flex items-center gap-3 text-xs text-slate-300 pt-1 flex-wrap">
@@ -500,6 +504,229 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
           </div>
         </form>
       )}
+
+      {/* ======================================================== */}
+      {/* 🔥 V4 PRIMARY FOCUS: รูด 1 ตัว 19 ประตู บน+ล่าง (กรอง 35 งวดจริง) */}
+      {/* ======================================================== */}
+      <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-400/70 bg-gradient-to-br from-emerald-950/55 via-slate-900 to-slate-950 p-6 sm:p-8 shadow-2xl space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-emerald-500/30 pb-5">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 text-xs font-black flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                <span>กลยุทธ์หลัก V4: รูด 1 ตัว 19 ประตู บน+ล่าง</span>
+              </span>
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                  single19.passesStandardFilter
+                    ? 'bg-amber-400/20 text-amber-300 border-amber-400/60'
+                    : 'bg-slate-800 text-slate-300 border-slate-700'
+                }`}
+              >
+                {single19.passesStandardFilter
+                  ? `✅ ผ่านตัวกรอง Backtest ${single19.testedDraws} งวดเกินมาตรฐาน (${single19.hitRatePercent}% ≥ ${single19.standardTargetRate}%)`
+                  : `⏳ สถิติ ${single19.testedDraws} งวด: ${single19.hitRatePercent}% (กำลังสะสมแรงค้าง)`}
+              </span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              {cfg.flag} เม็ดเดี่ยวเน้นรูด 19 ประตู บน+ล่าง ประจำ{upcoming.drawDateThai}
+            </h2>
+            <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+              {single19.filterSummary}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0 bg-slate-950/90 border border-emerald-500/40 rounded-2xl px-4 py-3">
+            <div className="text-right">
+              <div className="text-[11px] text-slate-400">เกณฑ์เทียบ 40฿ → 100฿</div>
+              <div className="text-xs font-bold text-emerald-300">
+                สุ่ม 34.4% • คุ้มทุน 40.0% • เป้ามาตรฐาน {single19.standardTargetRate}%
+              </div>
+              <div className="text-sm font-black text-amber-300 font-mono-tabular">
+                ทำได้จริง {single19.hitRatePercent}% (+{(single19.hitRatePercent - single19.breakevenRate).toFixed(1)}% เหนือจุดคุ้มทุน)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Giant Primary Pick + Runner-up + 4 Financial/Filter Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          {/* Giant Single Digit Hero Box */}
+          <div className="lg:col-span-4 bg-gradient-to-b from-amber-500/20 via-slate-950 to-slate-950 border-2 border-amber-400 rounded-3xl p-6 flex flex-col items-center justify-between text-center shadow-xl shadow-amber-500/10">
+            <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+              ⭐ ตัวเดียวเน้นๆ (19 ประตู บน+ล่าง)
+            </span>
+
+            <div className="my-4 w-28 h-28 sm:w-32 sm:h-32 rounded-3xl bg-gradient-to-tr from-amber-500 via-yellow-300 to-amber-200 text-slate-950 font-black text-6xl sm:text-7xl flex items-center justify-center shadow-2xl shadow-amber-500/40 font-mono-tabular">
+              {single19.primaryPick.digit}
+            </div>
+
+            <div className="w-full space-y-2 text-xs">
+              <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2">
+                <span className="text-slate-400">คะแนนกรอง V4:</span>
+                <span className="font-black text-amber-300 font-mono">{single19.primaryPick.score} / 100</span>
+              </div>
+              <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2">
+                <span className="text-slate-400">ค้าง 2 ตัวบน-ล่าง:</span>
+                <span className="font-black text-emerald-300 font-mono">{single19.primaryPick.dueGap4Pos} งวดติด</span>
+              </div>
+              <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2">
+                <span className="text-slate-400">ตัวกันรอง (ถ้าลง 2 ตัว):</span>
+                <span className="font-black text-cyan-300 font-mono text-base">{single19.backupPick.digit} <span className="text-[11px] font-normal text-slate-400">(ค้าง {single19.backupPick.dueGap4Pos} งวด)</span></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right 8 cols: 35-Draw Proof KPIs + Ranked Candidate Bar */}
+          <div className="lg:col-span-8 flex flex-col justify-between gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-slate-950/90 border border-emerald-500/40 rounded-2xl p-4 space-y-1">
+                <span className="text-[11px] text-emerald-300/80 block">อัตราเข้า {single19.testedDraws} งวดจริง</span>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono-tabular">
+                  {single19.hitRatePercent}%
+                </div>
+                <span className="text-[11px] text-slate-400 block">
+                  เข้า {single19.hitDraws}/{single19.testedDraws} งวด (+{single19.doubleHitDraws} เด้ง)
+                </span>
+              </div>
+
+              <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-4 space-y-1">
+                <span className="text-[11px] text-amber-300/80 block">กำไรจำลอง (ไม้ละ {single19.simulatedBetPerDraw}฿)</span>
+                <div className={`text-2xl sm:text-3xl font-black font-mono-tabular ${single19.simulatedNetProfit >= 0 ? 'text-amber-300' : 'text-rose-400'}`}>
+                  {single19.simulatedNetProfit >= 0 ? '+' : ''}
+                  {single19.simulatedNetProfit.toLocaleString()}฿
+                </div>
+                <span className="text-[11px] text-slate-400 block">
+                  ทุน {single19.simulatedTotalCost.toLocaleString()} → รับ {single19.simulatedTotalPayout.toLocaleString()}฿
+                </span>
+              </div>
+
+              <div className="bg-slate-950/90 border border-cyan-500/40 rounded-2xl p-4 space-y-1">
+                <span className="text-[11px] text-cyan-300/80 block">ผลตอบแทน ROI สะสม</span>
+                <div className={`text-2xl sm:text-3xl font-black font-mono-tabular ${single19.simulatedRoiPercent >= 0 ? 'text-cyan-300' : 'text-rose-400'}`}>
+                  {single19.simulatedRoiPercent >= 0 ? '+' : ''}
+                  {single19.simulatedRoiPercent}%
+                </div>
+                <span className="text-[11px] text-slate-400 block">
+                  รวมถูกทั้งหมด {single19.totalHitCount} เด้ง (เด้งละ {single19.simulatedPayoutPerHit}฿)
+                </span>
+              </div>
+
+              <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-1">
+                <span className="text-[11px] text-slate-400 block">แรงค้างระยะสั้น (10 งวดหลัง)</span>
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono-tabular">
+                  {single19.primaryPick.countLast10} ครั้ง
+                </div>
+                <span className="text-[11px] text-slate-400 block">
+                  สถิติ{upcoming.dayOfWeekThai} ออก {single19.primaryPick.dayCount} ครั้ง
+                </span>
+              </div>
+            </div>
+
+            {/* Top 5 Candidate Filter Bar */}
+            <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-white flex items-center gap-1.5">
+                  <Target className="w-4 h-4 text-emerald-400" />
+                  <span>จัดอันดับตัวกรอง 0–9 สำหรับรูด 19 ประตู บน+ล่าง ({upcoming.drawDateThai})</span>
+                </span>
+                <span className="text-[11px] text-slate-400">สูตร V4: ค้าง 4 ตำแหน่ง (65%) + ขาดช่วง 10 งวด (25%) + ขาดประจำวัน (10%)</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {single19.allRanked.slice(0, 5).map((cand, idx) => (
+                  <div
+                    key={cand.digit}
+                    className={`rounded-xl p-3 border text-center space-y-1 ${
+                      idx === 0
+                        ? 'bg-amber-500/20 border-amber-400 shadow-md'
+                        : cand.passesFilter
+                        ? 'bg-emerald-950/40 border-emerald-500/40'
+                        : 'bg-slate-900 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className={idx === 0 ? 'text-amber-300 font-black' : 'text-slate-400'}>อันดับ {idx + 1}</span>
+                      <span className="font-mono text-slate-300">{cand.score}pt</span>
+                    </div>
+                    <div className={`text-2xl font-black font-mono ${idx === 0 ? 'text-amber-300' : 'text-white'}`}>
+                      {cand.digit}
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      ค้าง {cand.dueGap4Pos} งวด • {cand.passesFilter ? '✅ ผ่านเกณฑ์' : '⚪ รอง'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 35-Draw Real Verification Strip */}
+            <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                  <BarChart2 className="w-4 h-4 text-emerald-400" />
+                  <span>หลักฐานตรวจจริงย้อนหลัง {single19.recentAudits.length} งวด (ไม่แอบดูเฉลย • 40฿ → 100฿/เด้ง)</span>
+                </span>
+                {single19.recentAudits.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAll35SingleAudits((v) => !v)}
+                    className="px-3 py-1 text-[11px] font-bold text-cyan-300 bg-cyan-950/60 hover:bg-cyan-900/70 border border-cyan-500/40 rounded-lg cursor-pointer"
+                  >
+                    {showAll35SingleAudits ? 'ย่อเหลือ 8 งวดล่าสุด' : `ดูครบทั้ง ${single19.recentAudits.length} งวด`}
+                  </button>
+                )}
+              </div>
+
+              <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                <table className="w-full text-[11px] text-left border-collapse">
+                  <thead className="sticky top-0 bg-slate-950">
+                    <tr className="text-slate-400 border-b border-slate-800">
+                      <th className="py-1.5 pr-3">งวด</th>
+                      <th className="py-1.5 pr-3">วางรูด 1 ตัว</th>
+                      <th className="py-1.5 pr-3">ค้างก่อนออก</th>
+                      <th className="py-1.5 pr-3">2 ตัวบน</th>
+                      <th className="py-1.5 pr-3">2 ตัวล่าง</th>
+                      <th className="py-1.5 pr-3">ผลตรวจจริง</th>
+                      <th className="py-1.5 text-right">กำไร/ขาดทุน</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {(showAll35SingleAudits ? single19.recentAudits : single19.recentAudits.slice(0, 8)).map((row) => (
+                      <tr key={row.drawDate} className="text-slate-300">
+                        <td className="py-1.5 pr-3 whitespace-nowrap">{row.drawDateThai}</td>
+                        <td className="py-1.5 pr-3 font-mono font-black text-amber-300 text-xs">{row.predictedDigit}</td>
+                        <td className="py-1.5 pr-3 font-mono text-slate-400">{row.dueGapBeforeDraw} งวด ({row.edgeScore}pt)</td>
+                        <td className={`py-1.5 pr-3 font-mono font-bold ${row.hitTop ? 'text-emerald-300' : 'text-slate-400'}`}>{row.actual2Top}</td>
+                        <td className={`py-1.5 pr-3 font-mono font-bold ${row.hitBottom ? 'text-emerald-300' : 'text-slate-400'}`}>{row.actual2Bottom}</td>
+                        <td className="py-1.5 pr-3 whitespace-nowrap">
+                          {row.hitCount === 2 ? (
+                            <span className="px-2 py-0.5 rounded bg-amber-500/25 text-amber-300 font-bold">เข้า 2 เด้ง บน+ล่าง!</span>
+                          ) : row.hitTop ? (
+                            <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">เข้า 2 ตัวบน</span>
+                          ) : row.hitBottom ? (
+                            <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold">เข้า 2 ตัวล่าง</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-500">หลุดงวดนี้</span>
+                          )}
+                        </td>
+                        <td className={`py-1.5 font-mono font-bold text-right ${row.netBaht >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {row.netBaht >= 0 ? `+${row.netBaht}` : row.netBaht}฿
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+          <span>📌 เลข 2 ตัวบน-ล่าง และชุด 3 ตัวเต็ง-โต๊ด / พอร์ต 15 ชุดด้านล่างยังคงแสดงผลและคำนวณปกติครบทุกส่วน</span>
+          <span className="text-emerald-300 font-semibold">ทุนรูด 1 ตัว บน+ล่าง = 40฿ (38 ประตูจริง) • ถูก 1 เด้งกำไร +60฿ • 2 เด้งกำไร +160฿</span>
+        </div>
+      </div>
 
       {/* ======================================================== */}
       {/* 🔍 POST-MORTEM LAB: รายงานผ่าตัดระบบ & ชันสูตรผลงวดล่าสุดจริง */}
@@ -1877,7 +2104,7 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
 
         <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-200 font-mono whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
           {analysis?.facebookPostContent ||
-            `${cfg.flag} สรุปแนวทาง${cfg.name} ประจำ${upcoming.drawDateThai} ${cfg.flag}\n(Engine V3 Mean-Reversion + Due-Gap จาก ${stats.totalDraws} งวด • Backtest วิ่ง/รูด ${stats.backtestReport.run2Rate}%)\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${main3D} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${threeConviction.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (${15 - doubleShieldCount} ชุดหลัก + ${doubleShieldCount} กันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทองเน้นหนัก): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงินเต็งรอง): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (แกนเสริม + เกราะกันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n\n⭐ ${cfg.fourDigitsLabel} แจ็กพอตเสริม: ${main4D}\n⭐ เลขเด่น: ${highlightMain}  |  เลขรอง: ${highlightSecondary}  |  วิ่ง/รูด: ${runningPair.join(' - ')}\n\n🎯 เจาะ 2 ตัวบน: ${topPairsList.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomPairsList.slice(0, 4).join(' - ')}${
+            `${cfg.flag} สรุปแนวทาง${cfg.name} ประจำ${upcoming.drawDateThai} ${cfg.flag}\n(Engine V4 รูด 1 ตัว 19 ประตู บน+ล่าง • Backtest ${single19.testedDraws} งวดจริงเข้า ${single19.hitRatePercent}% เกินมาตรฐาน ${single19.standardTargetRate}%)\n\n🔥 【 ตัวเดียวเน้นๆ รูด 19 ประตู บน+ล่าง 】:  ⭐ ${highlightMain} ⭐  (ค้าง 4 ตำแหน่ง ${single19.primaryPick.dueGap4Pos} งวด • คะแนน ${single19.primaryPick.score}/100)\n🛡️ ตัวกันรอง: ${highlightSecondary} (ค้าง ${single19.backupPick.dueGap4Pos} งวด)\n\n🎯 เจาะ 2 ตัวบน: ${topPairsList.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomPairsList.slice(0, 4).join(' - ')}\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${main3D} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${threeConviction.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (${15 - doubleShieldCount} ชุดหลัก + ${doubleShieldCount} กันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทองเน้นหนัก): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงินเต็งรอง): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (แกนเสริม + เกราะกันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n\n⭐ ${cfg.fourDigitsLabel} แจ็กพอตเสริม: ${main4D}${
               cfg.hasAnimals
                 ? `\n\n🐉 นามสัตว์มงคล: ${animalMain.name} (${animalMain.number}) / ${animalBackup.name} (${animalBackup.number})`
                 : ''

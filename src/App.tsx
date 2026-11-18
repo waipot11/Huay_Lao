@@ -31,8 +31,9 @@ function buildAnalysisFromStats(
   const conv3D = statsData.threeDigitConviction;
   const conv4D = statsData.fourDigitConviction;
   const portfolio15 = conv3D.fifteenSetsPortfolio;
-  const highlightMain = String(statsData.recommendedRunDigits?.[0] ?? statsData.hotDigits[0] ?? conv3D.mainPick[0] ?? '0');
-  const highlightSecondary = String(statsData.recommendedRunDigits?.[1] ?? statsData.hotDigits[1] ?? conv3D.mainPick[1] ?? '0');
+  const single19 = statsData.singleDigit19Door;
+  const highlightMain = single19?.primaryPick?.digit ?? String(statsData.recommendedRunDigits?.[0] ?? conv3D.mainPick[0] ?? '0');
+  const highlightSecondary = single19?.backupPick?.digit ?? String(statsData.recommendedRunDigits?.[1] ?? conv3D.mainPick[1] ?? '0');
   const thirdRun = String(statsData.recommendedRunDigits?.[2] ?? statsData.hotDigits[2] ?? conv3D.mainPick[2] ?? '0');
   const topList = conv3D.derivedTwoDigits?.topList || [conv3D.derivedTwoDigits.top];
   const bottomList = conv3D.derivedTwoDigits?.bottomList || [conv3D.derivedTwoDigits.bottom];
@@ -77,7 +78,7 @@ function buildAnalysisFromStats(
       expertConsensus: 7,
       aiDeep: 12,
     },
-    facebookPostContent: `${cfg.flag} สรุปแนวทาง${cfg.name} ประจำ${upcomingData.drawDateThai} ${cfg.flag}\n(Engine V3 Mean-Reversion + Due-Gap จาก ${statsData.totalDraws} งวด • Backtest วิ่ง/รูด ${statsData.backtestReport.run2Rate}%)\n\n⭐ วิ่ง / รูด 19 ประตู (ตัวทำกำไรหลัก): ${highlightMain} - ${highlightSecondary}\n🎯 เจาะ 2 ตัวบน (5 ชุดคัดพิเศษ): ${topList.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomList.slice(0, 4).join(' - ')}\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${conv3D.mainPick} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${conv3D.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (13 ชุดหลัก + ${doubleShieldList.length} เกราะกันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทอง): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงิน): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (หลักเสริม + กันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n\n⭐ ${cfg.fourDigitsLabel} แจ็กพอตเสริม: ${conv3D.fourDigitJackpot}${animalLine}\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและความน่าจะเป็น\n${cfg.hashtags}`,
+    facebookPostContent: `${cfg.flag} สรุปแนวทาง${cfg.name} ประจำ${upcomingData.drawDateThai} ${cfg.flag}\n(Engine V4 รูด 1 ตัว 19 ประตู บน+ล่าง • Backtest ${single19.testedDraws} งวดจริงเข้า ${single19.hitRatePercent}% เกินมาตรฐาน ${single19.standardTargetRate}%)\n\n🔥 【 ตัวเดียวเน้นๆ รูด 19 ประตู บน+ล่าง 】:  ⭐ ${highlightMain} ⭐  (ค้าง 4 ตำแหน่ง ${single19.primaryPick.dueGap4Pos} งวด • คะแนน ${single19.primaryPick.score}/100)\n🛡️ ตัวกันรอง: ${highlightSecondary} (ค้าง ${single19.backupPick.dueGap4Pos} งวด)\n\n🎯 เจาะ 2 ตัวบน (5 ชุดคัดพิเศษ): ${topList.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomList.slice(0, 4).join(' - ')}\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${conv3D.mainPick} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${conv3D.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (13 ชุดหลัก + ${doubleShieldList.length} เกราะกันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทอง): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงิน): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (หลักเสริม + กันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n\n⭐ ${cfg.fourDigitsLabel} แจ็กพอตเสริม: ${conv3D.fourDigitJackpot}${animalLine}\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและความน่าจะเป็น\n${cfg.hashtags}`,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -564,8 +565,9 @@ export default function App() {
             bannerData={{
               lotteryType,
               drawDateThai: analysis?.targetDrawDateThai || upcoming.drawDateThai,
-              highlightMain: analysis?.highlightMain || String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? '0'),
-              highlightSecondary: analysis?.highlightSecondary || String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? '0'),
+              highlightMain: stats.singleDigit19Door?.primaryPick?.digit || analysis?.highlightMain || String(stats.recommendedRunDigits?.[0] ?? '0'),
+              highlightSecondary: stats.singleDigit19Door?.backupPick?.digit || analysis?.highlightSecondary || String(stats.recommendedRunDigits?.[1] ?? '0'),
+              single19HitRate: stats.singleDigit19Door?.hitRatePercent,
               twoDigitsTop: analysis?.twoDigitsTop || stats.threeDigitConviction.derivedTwoDigits.topList,
               twoDigitsBottom: analysis?.twoDigitsBottom || stats.threeDigitConviction.derivedTwoDigits.bottomList,
               threeDigitsDirect: analysis?.threeDigitsDirect || [stats.threeDigitConviction.mainPick, ...stats.threeDigitConviction.supportingPicks],
