@@ -14,7 +14,7 @@ import { computeComprehensiveStats, getUpcomingLaoDraw, ComprehensiveStats, Upco
 import { HISTORICAL_DRAWS, LaoLotteryDraw } from './data/laoLotteryHistory';
 import { HANOI_HISTORICAL_DRAWS } from './data/hanoiLotteryHistory';
 import { MALAY_HISTORICAL_DRAWS } from './data/malayLotteryHistory';
-import { LotteryType, LOTTERY_CONFIGS } from './utils/lotteryTypes';
+import { LotteryType, LOTTERY_CONFIGS, LiveSyncStatusInfo } from './utils/lotteryTypes';
 
 function getBaseDrawsForType(type: LotteryType): LaoLotteryDraw[] {
   if (type === 'hanoi') return HANOI_HISTORICAL_DRAWS;
@@ -89,6 +89,8 @@ export default function App() {
   const [stats, setStats] = useState<ComprehensiveStats>(() => computeComprehensiveStats(HISTORICAL_DRAWS, new Date(), 'lao'));
   const [upcoming, setUpcoming] = useState<UpcomingDrawInfo>(() => getUpcomingLaoDraw(new Date(), 5, HISTORICAL_DRAWS, 'lao'));
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncingLive, setIsSyncingLive] = useState(false);
+  const [syncStatusMap, setSyncStatusMap] = useState<Partial<Record<LotteryType, LiveSyncStatusInfo>>>({});
 
   const [fbConfig, setFbConfig] = useState<FacebookConfig>({
     pageId: '',
@@ -187,12 +189,18 @@ export default function App() {
 
         if (historyData.success && Array.isArray(historyData.draws)) {
           setDraws(historyData.draws);
+          if (historyData.syncStatus) {
+            setSyncStatusMap((prev) => ({ ...prev, [lotteryType]: historyData.syncStatus }));
+          }
         }
 
         if (statsData.success && statsData.stats && statsData.upcoming) {
           setStats(statsData.stats);
           setUpcoming(statsData.upcoming);
           setAnalysis(buildAnalysisFromStats(statsData.stats, statsData.upcoming, lotteryType));
+          if (statsData.syncStatus) {
+            setSyncStatusMap((prev) => ({ ...prev, [lotteryType]: statsData.syncStatus }));
+          }
         }
       } catch (err) {
         console.error(`Lottery data load error (${lotteryType}):`, err);
@@ -247,6 +255,36 @@ export default function App() {
       return { success: false, error: data.error || 'ไม่สามารถบันทึกผลหวยได้' };
     } catch (err: any) {
       return { success: false, error: err.message || 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ' };
+    }
+  };
+
+  // Live Auto-Sync Handler -> pulls real official results & updates stats/predictions immediately
+  const handleSyncLiveResults = async (): Promise<{ success: boolean; message?: string }> => {
+    setIsSyncingLive(true);
+    try {
+      const res = await fetch('/api/history/sync-live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lotteryType }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data.draws)) setDraws(data.draws);
+      if (data.stats && data.upcoming) {
+        setStats(data.stats);
+        setUpcoming(data.upcoming);
+        setAnalysis(buildAnalysisFromStats(data.stats, data.upcoming, lotteryType));
+      }
+      if (data.syncStatus) {
+        setSyncStatusMap((prev) => ({ ...prev, [lotteryType]: data.syncStatus }));
+      }
+      return {
+        success: Boolean(data.success),
+        message: data.message || (data.success ? 'ดึงผลจริงสำเร็จ' : 'ยังไม่สามารถดึงผลล่าสุดได้'),
+      };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'เชื่อมต่อระบบดึงผลไม่สำเร็จ' };
+    } finally {
+      setIsSyncingLive(false);
     }
   };
 
@@ -488,6 +526,9 @@ export default function App() {
             onSendToQueue={handleSendToQueue}
             onGoToBanner={() => setActiveTab('banner')}
             onRecordDraw={handleRecordDraw}
+            onSyncLive={handleSyncLiveResults}
+            isSyncingLive={isSyncingLive}
+            syncStatus={syncStatusMap[lotteryType] || null}
           />
         )}
 
@@ -543,7 +584,16 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'stats' && <StatisticsTab lotteryType={lotteryType} stats={stats} draws={draws} />}
+        {activeTab === 'stats' && (
+          <StatisticsTab
+            lotteryType={lotteryType}
+            stats={stats}
+            draws={draws}
+            onSyncLive={handleSyncLiveResults}
+            isSyncingLive={isSyncingLive}
+            syncStatus={syncStatusMap[lotteryType] || null}
+          />
+        )}
       </main>
 
       {/* Clean Footer */}

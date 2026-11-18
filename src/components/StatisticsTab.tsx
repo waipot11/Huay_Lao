@@ -9,15 +9,19 @@ import {
   Percent,
   BookOpen,
   Hash,
+  RotateCw,
 } from 'lucide-react';
 import { ComprehensiveStats } from '../utils/lotteryStats';
 import { LaoLotteryDraw, HISTORICAL_DRAWS, LAO_ANIMALS } from '../data/laoLotteryHistory';
-import { LotteryType, LOTTERY_CONFIGS, DayOfWeekEnglish } from '../utils/lotteryTypes';
+import { LotteryType, LOTTERY_CONFIGS, DayOfWeekEnglish, LiveSyncStatusInfo } from '../utils/lotteryTypes';
 
 interface StatisticsTabProps {
   lotteryType?: LotteryType;
   stats: ComprehensiveStats;
   draws?: LaoLotteryDraw[];
+  onSyncLive?: () => Promise<{ success: boolean; message?: string }>;
+  isSyncingLive?: boolean;
+  syncStatus?: LiveSyncStatusInfo | null;
 }
 
 const WEEKDAY_META: Array<{
@@ -39,19 +43,31 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({
   lotteryType = 'lao',
   stats,
   draws = HISTORICAL_DRAWS,
+  onSyncLive,
+  isSyncingLive = false,
+  syncStatus = null,
 }) => {
   const cfg = LOTTERY_CONFIGS[lotteryType];
   const [subView, setSubView] = useState<'history' | 'frequencies' | 'animals' | 'kamlang'>('history');
   const [dayFilter, setDayFilter] = useState<'all' | DayOfWeekEnglish>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [animalSearch, setAnimalSearch] = useState('');
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setDayFilter('all');
+    setSyncMsg(null);
     if (!cfg.hasAnimals && subView === 'animals') {
       setSubView('history');
     }
   }, [lotteryType, cfg.hasAnimals]);
+
+  const handleClickSync = async () => {
+    if (!onSyncLive || isSyncingLive) return;
+    setSyncMsg(null);
+    const res = await onSyncLive();
+    if (res.message) setSyncMsg(res.message);
+  };
 
   const activeWeekdayFilters = WEEKDAY_META.filter((w) => cfg.drawDays.includes(w.dayNum));
 
@@ -75,19 +91,32 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Header and Sub Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-        <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-emerald-400" />
-            <span>{cfg.flag} คลังสถิติ{cfg.name} & ข้อมูลหลายแหล่ง</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            สถิติผลรางวัลย้อนหลัง ความถี่รายตำแหน่ง อัตราส่วนคู่-คี่ สูง-ต่ำ และกำลังวันมหาทักษา ({cfg.drawScheduleLabel})
-          </p>
-        </div>
+      <div className="flex flex-col gap-3 bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-emerald-400" />
+              <span>{cfg.flag} คลังสถิติ{cfg.name} & ข้อมูลหลายแหล่ง</span>
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              สถิติผลรางวัลย้อนหลัง ความถี่รายตำแหน่ง อัตราส่วนคู่-คี่ สูง-ต่ำ และกำลังวันมหาทักษา ({cfg.drawScheduleLabel})
+            </p>
+          </div>
 
-        {/* Sub Nav */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto">
+          <div className="flex flex-wrap items-center gap-2">
+            {onSyncLive && (
+              <button
+                type="button"
+                onClick={handleClickSync}
+                disabled={isSyncingLive}
+                className="px-3.5 py-2 text-xs font-bold text-cyan-200 bg-cyan-950/70 hover:bg-cyan-900/90 border border-cyan-500/40 rounded-xl transition-all flex items-center gap-1.5 disabled:opacity-60 cursor-pointer"
+              >
+                <RotateCw className={`w-3.5 h-3.5 text-cyan-400 ${isSyncingLive ? 'animate-spin' : ''}`} />
+                <span>{isSyncingLive ? 'กำลังอัปเดต...' : 'อัปเดตผลจริงล่าสุด'}</span>
+              </button>
+            )}
+            {/* Sub Nav */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto">
           <button
             onClick={() => setSubView('history')}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
@@ -130,7 +159,23 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({
               ตำรานามสัตว์ 40 ชนิด
             </button>
           )}
+            </div>
+          </div>
         </div>
+
+        {(syncMsg || syncStatus?.lastSyncedAt) && (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-cyan-200/90 bg-cyan-950/40 border border-cyan-500/25 rounded-xl px-3.5 py-2">
+            <span>
+              {syncMsg ||
+                `เชื่อมต่อแหล่งผลจริง (${syncStatus?.sourceName}): ล่าสุด ${syncStatus?.latestLiveDrawDate || '-'} ${syncStatus?.latestLiveNumbers || ''}`}
+            </span>
+            {syncStatus?.lastSyncedAt && (
+              <span className="text-cyan-400 font-mono-tabular">
+                ซิงค์ล่าสุด {new Date(syncStatus.lastSyncedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* KPI Summary Strip */}

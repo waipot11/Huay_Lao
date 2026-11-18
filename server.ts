@@ -7,8 +7,9 @@ import { GoogleGenAI } from '@google/genai';
 import { HISTORICAL_DRAWS, LAO_ANIMALS, LaoLotteryDraw } from './src/data/laoLotteryHistory.ts';
 import { HANOI_HISTORICAL_DRAWS } from './src/data/hanoiLotteryHistory.ts';
 import { MALAY_HISTORICAL_DRAWS } from './src/data/malayLotteryHistory.ts';
-import { LotteryType, LOTTERY_CONFIGS, ALL_LOTTERY_TYPES, DayOfWeekEnglish } from './src/utils/lotteryTypes.ts';
+import { LotteryType, LOTTERY_CONFIGS, ALL_LOTTERY_TYPES, DayOfWeekEnglish, LiveSyncStatusInfo } from './src/utils/lotteryTypes.ts';
 import { computeComprehensiveStats, getUpcomingLaoDraw } from './src/utils/lotteryStats.ts';
+import { fetchLiveResultsByType } from './src/utils/liveResultFetcher.ts';
 
 dotenv.config();
 
@@ -121,6 +122,235 @@ function getAllDraws(type: LotteryType = 'lao'): LaoLotteryDraw[] {
   return Array.from(map.values()).sort((a, b) => b.drawDate.localeCompare(a.drawDate));
 }
 
+const LIVE_SOURCE_LABELS: Record<LotteryType, string> = {
+  lao: 'Sanook ตรวจหวยลาว',
+  hanoi: 'XSKT Miền Bắc Official RSS',
+  malay: '4D88 Magnum 4D Live',
+};
+
+const liveSyncState: Record<LotteryType, LiveSyncStatusInfo> = {
+  lao: {
+    lotteryType: 'lao',
+    sourceName: LIVE_SOURCE_LABELS.lao,
+    lastCheckedAt: null,
+    lastSyncedAt: null,
+    latestLiveDrawDate: null,
+    latestLiveNumbers: null,
+    addedCount: 0,
+    updatedCount: 0,
+    lastResultSummary: null,
+    lastError: null,
+    isSyncing: false,
+  },
+  hanoi: {
+    lotteryType: 'hanoi',
+    sourceName: LIVE_SOURCE_LABELS.hanoi,
+    lastCheckedAt: null,
+    lastSyncedAt: null,
+    latestLiveDrawDate: null,
+    latestLiveNumbers: null,
+    addedCount: 0,
+    updatedCount: 0,
+    lastResultSummary: null,
+    lastError: null,
+    isSyncing: false,
+  },
+  malay: {
+    lotteryType: 'malay',
+    sourceName: LIVE_SOURCE_LABELS.malay,
+    lastCheckedAt: null,
+    lastSyncedAt: null,
+    latestLiveDrawDate: null,
+    latestLiveNumbers: null,
+    addedCount: 0,
+    updatedCount: 0,
+    lastResultSummary: null,
+    lastError: null,
+    isSyncing: false,
+  },
+};
+
+const LIVE_CHECK_COOLDOWN_MS = 180 * 1000;
+
+async function syncLotteryFromLiveSource(
+  type: LotteryType,
+  options?: { force?: boolean }
+): Promise<{
+  ok: boolean;
+  addedCount: number;
+  updatedCount: number;
+  changedDraws: LaoLotteryDraw[];
+  latestDraw?: LaoLotteryDraw;
+  message: string;
+  skippedByCooldown?: boolean;
+}> {
+  const state = liveSyncState[type];
+  const cfg = LOTTERY_CONFIGS[type];
+
+  if (state.isSyncing) {
+    return {
+      ok: true,
+      addedCount: 0,
+      updatedCount: 0,
+      changedDraws: [],
+      message: `กำลังดึงผล${cfg.shortName}อยู่ กรุณารอสักครู่...`,
+      skippedByCooldown: true,
+    };
+  }
+
+  if (!options?.force && state.lastCheckedAt) {
+    const elapsed = Date.now() - new Date(state.lastCheckedAt).getTime();
+    if (elapsed < LIVE_CHECK_COOLDOWN_MS) {
+      return {
+        ok: true,
+        addedCount: 0,
+        updatedCount: 0,
+        changedDraws: [],
+        message: `ตรวจสอบผล${cfg.shortName}ล่าสุดไปแล้วเมื่อไม่กี่นาทีที่ผ่านมา`,
+        skippedByCooldown: true,
+      };
+    }
+  }
+
+  state.isSyncing = true;
+  state.lastCheckedAt = new Date().toISOString();
+
+  try {
+    const outcome = await fetchLiveResultsByType(type);
+    state.sourceName = outcome.sourceName;
+
+    if (!outcome.ok || outcome.fetchedDraws.length === 0) {
+      state.lastError = outcome.error || 'ยังไม่มีผลรางวัลงวดใหม่จากแหล่งข้อมูล';
+      const fallbackMsg = `${cfg.flag} ${cfg.shortName}: ${state.lastError}`;
+      state.lastResultSummary = fallbackMsg;
+      return {
+        ok: false,
+        addedCount: 0,
+        updatedCount: 0,
+        changedDraws: [],
+        message: fallbackMsg,
+      };
+    }
+
+    const baseMap = new Map<string, LaoLotteryDraw>();
+    for (const d of getBaseDrawsByType(type)) baseMap.set(d.drawDate, d);
+    const customMap = new Map<string, LaoLotteryDraw>();
+    for (const d of customDrawsMap[type]) customMap.set(d.drawDate, d);
+
+    let addedCount = 0;
+    let updatedCount = 0;
+    const changedDraws: LaoLotteryDraw[] = [];
+
+    for (const liveDraw of outcome.fetchedDraws) {
+      const existingCustom = customMap.get(liveDraw.drawDate);
+      const existingBase = baseMap.get(liveDraw.drawDate);
+      const existing = existingCustom || existingBase;
+
+      // Preserve non-partial manual user edits
+      if (existingCustom && existingCustom.id.startsWith('manual-') && !existingCustom.isPartial) {
+        continue;
+      }
+
+      if (!existing) {
+        customMap.set(liveDraw.drawDate, liveDraw);
+        addedCount += 1;
+        changedDraws.push(liveDraw);
+      } else {
+        const wasPartial = Boolean(existing.isPartial);
+        const numbersDiffer =
+          existing.sixDigits !== liveDraw.sixDigits ||
+          existing.threeDigitsTop !== liveDraw.threeDigitsTop ||
+          existing.twoDigitsBottom !== liveDraw.twoDigitsBottom;
+        const replacesBaseSeed = !existingCustom && numbersDiffer;
+
+        if ((wasPartial || replacesBaseSeed || (existingCustom && numbersDiffer)) && !liveDraw.isPartial) {
+          customMap.set(liveDraw.drawDate, liveDraw);
+          updatedCount += 1;
+          changedDraws.push(liveDraw);
+        }
+      }
+    }
+
+    if (addedCount > 0 || updatedCount > 0) {
+      customDrawsMap[type] = Array.from(customMap.values()).sort((a, b) =>
+        b.drawDate.localeCompare(a.drawDate)
+      );
+      saveCustomDrawsByType(type, customDrawsMap[type]);
+      console.log(
+        `[LiveSync] ${cfg.shortName}: added=${addedCount}, updated=${updatedCount} (latest=${outcome.fetchedDraws[0].drawDate} ${outcome.fetchedDraws[0].threeDigitsTop}-${outcome.fetchedDraws[0].twoDigitsBottom})`
+      );
+    }
+
+    const latest = outcome.fetchedDraws[0];
+    state.lastSyncedAt = new Date().toISOString();
+    state.latestLiveDrawDate = latest.drawDate;
+    state.latestLiveNumbers = `${latest.sixDigits} (บน ${latest.threeDigitsTop} / ล่าง ${latest.twoDigitsBottom})`;
+    state.addedCount = addedCount;
+    state.updatedCount = updatedCount;
+    state.lastError = null;
+
+    const msg =
+      addedCount > 0 || updatedCount > 0
+        ? `${cfg.flag} ดึงผลจริง${cfg.shortName}สำเร็จ! เพิ่มใหม่ ${addedCount} งวด, อัปเดตสมบูรณ์ ${updatedCount} งวด (ล่าสุด ${latest.drawDateThai}: บน ${latest.threeDigitsTop} ล่าง ${latest.twoDigitsBottom})`
+        : `${cfg.flag} ผล${cfg.shortName}เป็นปัจจุบันแล้ว (ล่าสุด ${latest.drawDateThai}: บน ${latest.threeDigitsTop} ล่าง ${latest.twoDigitsBottom})`;
+
+    state.lastResultSummary = msg;
+    return {
+      ok: true,
+      addedCount,
+      updatedCount,
+      changedDraws,
+      latestDraw: latest,
+      message: msg,
+    };
+  } catch (err: any) {
+    const errMsg: string = err?.message || 'เกิดข้อผิดพลาดในการดึงผลจริง';
+    state.lastError = errMsg;
+    state.lastResultSummary = errMsg;
+    return {
+      ok: false,
+      addedCount: 0,
+      updatedCount: 0,
+      changedDraws: [],
+      message: errMsg,
+    };
+  } finally {
+    state.isSyncing = false;
+  }
+}
+
+async function syncAllLotteriesFromLive(options?: { force?: boolean }) {
+  return Promise.all(ALL_LOTTERY_TYPES.map((lt) => syncLotteryFromLiveSource(lt, options)));
+}
+
+function getBangkokDateParts() {
+  const bkk = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  return {
+    todayIso: bkk.toISOString().slice(0, 10),
+    dayOfWeek: bkk.getUTCDay(),
+    totalMin: bkk.getUTCHours() * 60 + bkk.getUTCMinutes(),
+  };
+}
+
+async function runPostDrawLiveSyncCheck() {
+  const { todayIso, dayOfWeek, totalMin } = getBangkokDateParts();
+  for (const lt of ALL_LOTTERY_TYPES) {
+    const cfg = LOTTERY_CONFIGS[lt];
+    if (!cfg.drawDays.includes(dayOfWeek)) continue;
+
+    // Start polling right after results begin publishing on draw days
+    const startMin = lt === 'lao' ? 20 * 60 + 32 : lt === 'malay' ? 19 * 60 : 18 * 60 + 32;
+    const endMin = lt === 'lao' ? 23 * 60 + 30 : 22 * 60 + 30;
+    if (totalMin < startMin || totalMin > endMin) continue;
+
+    const latest = getAllDraws(lt)[0];
+    const needsTodayUpdate = !latest || latest.drawDate < todayIso || Boolean(latest.isPartial);
+    if (needsTodayUpdate) {
+      await syncLotteryFromLiveSource(lt);
+    }
+  }
+}
+
 function loadConfig(): FacebookConfig {
   try {
     if (fs.existsSync(CONFIG_FILE)) {
@@ -225,7 +455,7 @@ function computeTargetAlertTime(hoursAhead: number, customAlertTime?: string): {
 
 // API Endpoints
 
-// 1. Get History (merged with user-recorded draws, supports ?type=lao|hanoi|malay)
+// 1. Get History (merged with user-recorded & live-synced draws, supports ?type=lao|hanoi|malay)
 app.get('/api/history', (req: Request, res: Response) => {
   const lotteryType = resolveLotteryType(req.query.type);
   const allDraws = getAllDraws(lotteryType);
@@ -236,6 +466,7 @@ app.get('/api/history', (req: Request, res: Response) => {
     draws: allDraws,
     data: allDraws,
     animals: lotteryType === 'lao' ? LAO_ANIMALS : {},
+    syncStatus: liveSyncState[lotteryType],
   });
 });
 
@@ -303,7 +534,7 @@ app.post('/api/history/add', (req: Request, res: Response) => {
   }
 
   const newDraw: LaoLotteryDraw = {
-    id: `${lotteryType}-${drawDate}`,
+    id: `manual-${lotteryType}-${drawDate}`,
     drawDate: String(drawDate),
     drawDateThai,
     dayOfWeek,
@@ -335,6 +566,50 @@ app.post('/api/history/add', (req: Request, res: Response) => {
     draws: allDraws,
     stats,
     upcoming,
+    syncStatus: liveSyncState[lotteryType],
+  });
+});
+
+// 1c. Sync Live Official Results Immediately (supports POST /api/history/sync-live)
+app.post('/api/history/sync-live', async (req: Request, res: Response) => {
+  const rawType = req.body?.lotteryType || req.query.type;
+  const syncAll = req.body?.all === true || req.query.all === 'true';
+  const lotteryType = resolveLotteryType(rawType);
+  const cfg = LOTTERY_CONFIGS[lotteryType];
+
+  if (syncAll) {
+    const outcomes = await syncAllLotteriesFromLive({ force: true });
+    const draws = getAllDraws(lotteryType);
+    const stats = computeComprehensiveStats(draws, new Date(), lotteryType);
+    const upcoming = getUpcomingLaoDraw(new Date(), cfg.defaultDaysAheadPost, draws, lotteryType);
+    return res.json({
+      success: outcomes.some((o) => o.ok),
+      lotteryType,
+      outcomes,
+      message: outcomes.map((o) => o.message).join(' | '),
+      draws,
+      stats,
+      upcoming,
+      syncStatus: liveSyncState[lotteryType],
+      allSyncStatus: liveSyncState,
+    });
+  }
+
+  const outcome = await syncLotteryFromLiveSource(lotteryType, { force: true });
+  const draws = getAllDraws(lotteryType);
+  const stats = computeComprehensiveStats(draws, new Date(), lotteryType);
+  const upcoming = getUpcomingLaoDraw(new Date(), cfg.defaultDaysAheadPost, draws, lotteryType);
+
+  res.json({
+    success: outcome.ok,
+    lotteryType,
+    addedCount: outcome.addedCount,
+    updatedCount: outcome.updatedCount,
+    message: outcome.message,
+    draws,
+    stats,
+    upcoming,
+    syncStatus: liveSyncState[lotteryType],
   });
 });
 
@@ -342,6 +617,13 @@ app.post('/api/history/add', (req: Request, res: Response) => {
 app.get('/api/stats', (req: Request, res: Response) => {
   const lotteryType = resolveLotteryType(req.query.type);
   const cfg = LOTTERY_CONFIGS[lotteryType];
+
+  // Trigger lightweight non-blocking background refresh if stale (> 5 min)
+  const lastCheck = liveSyncState[lotteryType].lastCheckedAt;
+  if (!lastCheck || Date.now() - new Date(lastCheck).getTime() > 5 * 60 * 1000) {
+    void syncLotteryFromLiveSource(lotteryType);
+  }
+
   const draws = getAllDraws(lotteryType);
   const stats = computeComprehensiveStats(draws, new Date(), lotteryType);
   const upcoming = getUpcomingLaoDraw(new Date(), cfg.defaultDaysAheadPost, draws, lotteryType);
@@ -351,6 +633,7 @@ app.get('/api/stats', (req: Request, res: Response) => {
     config: cfg,
     stats,
     upcoming,
+    syncStatus: liveSyncState[lotteryType],
   });
 });
 
@@ -1488,6 +1771,8 @@ app.all('/api/telegram/cron-trigger', async (req: Request, res: Response) => {
   const force = req.query.force === 'true' || req.body?.force === true;
   const rawType = req.query.type || req.body?.lotteryType;
   const lotteryType = rawType ? resolveLotteryType(rawType) : undefined;
+  // Also refresh live results silently if cooldown elapsed
+  void syncAllLotteriesFromLive();
   const outcome = await runTelegramAutoScheduler({ force, source: force ? 'manual-force' : 'external-cron', lotteryType });
   res.json({
     success: true,
@@ -1495,6 +1780,7 @@ app.all('/api/telegram/cron-trigger', async (req: Request, res: Response) => {
     schedulerStatus: getTelegramSchedulerStatus(),
     config: telegramConfig,
     logs: telegramLogs,
+    liveSyncStatus: liveSyncState,
   });
 });
 
@@ -1558,8 +1844,14 @@ setInterval(() => {
   runTelegramAutoScheduler({ source: 'interval-30s' });
 }, 30000);
 
-// Run initial check 3 seconds after startup
+// Live Lottery Result Auto-Fetcher (polls post-draw windows every 60s; internal 3-min cooldown per lottery)
+setInterval(() => {
+  void runPostDrawLiveSyncCheck();
+}, 60000);
+
+// Run initial Telegram & Live Result sync 3 seconds after startup
 setTimeout(() => {
+  void syncAllLotteriesFromLive({ force: true });
   runTelegramAutoScheduler({ source: 'startup' });
 }, 3000);
 

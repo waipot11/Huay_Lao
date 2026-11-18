@@ -15,9 +15,10 @@ const DAY_META: Record<number, { en: LaoLotteryDraw['dayOfWeek']; th: string; sh
   6: { en: 'Saturday', th: 'วันเสาร์', shortTh: 'เสาร์' },
 };
 
-// Baseline 50 daily draws for Hanoi (Normal) 18:30 น. leading up to 2026-11-17
-// Format: [YYYY-MM-DD, 5-digit Special Prize, 2-digit Bottom (Giải Nhất tail)]
+// Baseline daily draws for Hanoi (Normal) 18:30 น. (updated with 2026-11-18: 915 / 95)
+// Format: [YYYY-MM-DD, 5-digit Special Prize (or --XXX if 3-digit top only), 2-digit Bottom (Giải Nhất tail)]
 const HANOI_TUPLES: Array<[string, string, string]> = [
+  ['2026-11-18', '--915', '95'],
   ['2026-11-17', '48319', '64'],
   ['2026-11-16', '72604', '38'],
   ['2026-11-15', '19582', '71'],
@@ -77,6 +78,7 @@ export const HANOI_HISTORICAL_DRAWS: LaoLotteryDraw[] = HANOI_TUPLES.map(([drawD
   const fourDigits = fiveDigits.slice(-4);
   const threeDigitsTop = fiveDigits.slice(-3);
   const twoDigitsTop = fiveDigits.slice(-2);
+  const isPartial = !/^\d{5}$/.test(fiveDigits);
 
   return {
     id: `hanoi-${drawDate}`,
@@ -89,5 +91,6 @@ export const HANOI_HISTORICAL_DRAWS: LaoLotteryDraw[] = HANOI_TUPLES.map(([drawD
     threeDigitsTop,
     twoDigitsTop,
     twoDigitsBottom: bottom2,
+    ...(isPartial ? { isPartial: true } : {}),
   };
 });

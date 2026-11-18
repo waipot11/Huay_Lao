@@ -640,7 +640,7 @@ function runWalkForwardBacktest(drawsDescending: LaoLotteryDraw[]): BacktestRepo
     if (hit15Toad) toad15Hits++;
     if (hit15Direct) direct15Hits++;
 
-    if (!target.isPartial && /^\d{2}$/.test(target.twoDigitsBottom)) {
+    if (/^\d{2}$/.test(target.twoDigitsBottom)) {
       botSampleCount++;
       if (v3.bottom2PairsRanked.slice(0, 8).includes(target.twoDigitsBottom)) {
         twoBot8Hits++;
@@ -745,7 +745,7 @@ export function computeComprehensiveStats(
       twoDigitPairCounts[d2Top] = (twoDigitPairCounts[d2Top] || 0) + 1;
     }
 
-    const hasBottom = !draw.isPartial && /^\d{2}$/.test(draw.twoDigitsBottom);
+    const hasBottom = /^\d{2}$/.test(draw.twoDigitsBottom);
     if (hasBottom) {
       twoDigitPairCounts[draw.twoDigitsBottom] = (twoDigitPairCounts[draw.twoDigitsBottom] || 0) + 1;
     }

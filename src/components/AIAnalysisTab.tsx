@@ -29,7 +29,7 @@ import {
   Database,
 } from 'lucide-react';
 import { ComprehensiveStats, UpcomingDrawInfo, FourDigitConviction, ThreeDigitConviction, DataSourceItem } from '../utils/lotteryStats';
-import { LotteryType, LOTTERY_CONFIGS } from '../utils/lotteryTypes';
+import { LotteryType, LOTTERY_CONFIGS, LiveSyncStatusInfo } from '../utils/lotteryTypes';
 
 export interface AIAnalysisResult {
   targetDrawDate: string;
@@ -71,6 +71,9 @@ interface AIAnalysisTabProps {
   onSendToQueue: (analysis: AIAnalysisResult) => void;
   onGoToBanner: () => void;
   onRecordDraw?: (payload: RecordDrawPayload) => Promise<{ success: boolean; message?: string; error?: string }>;
+  onSyncLive?: () => Promise<{ success: boolean; message?: string }>;
+  isSyncingLive?: boolean;
+  syncStatus?: LiveSyncStatusInfo | null;
 }
 
 export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
@@ -83,6 +86,9 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
   onSendToQueue,
   onGoToBanner,
   onRecordDraw,
+  onSyncLive,
+  isSyncingLive = false,
+  syncStatus = null,
 }) => {
   const cfg = LOTTERY_CONFIGS[lotteryType];
   const [copied, setCopied] = useState(false);
@@ -107,10 +113,12 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
   const [recordAnimal, setRecordAnimal] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordFeedback, setRecordFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [liveSyncFeedback, setLiveSyncFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     setRecordDate(upcoming.drawDate || new Date().toISOString().slice(0, 10));
     setRecordFeedback(null);
+    setLiveSyncFeedback(null);
   }, [lotteryType, upcoming.drawDate]);
 
   // Active 3-Digit Prime Conviction (เต็งๆ เม็ดเดียว)
@@ -246,6 +254,16 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
     }
   };
 
+  const handleTriggerLiveSync = async () => {
+    if (!onSyncLive || isSyncingLive) return;
+    setLiveSyncFeedback(null);
+    const res = await onSyncLive();
+    setLiveSyncFeedback({
+      type: res.success ? 'success' : 'error',
+      text: res.message || (res.success ? 'อัปเดตผลจริงล่าสุดเรียบร้อย' : 'ยังไม่สามารถดึงผลใหม่ได้'),
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Hero Header */}
@@ -285,10 +303,33 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
                   {cfg.drawTimeLabel} ({stats.totalDraws} งวด)
                 </span>
               </div>
+
+              {syncStatus && (
+                <div className="flex items-center gap-1.5 bg-cyan-950/60 px-3 py-1.5 rounded-lg border border-cyan-500/30 text-cyan-200">
+                  <RotateCw className={`w-3.5 h-3.5 text-cyan-400 ${isSyncingLive ? 'animate-spin' : ''}`} />
+                  <span>ผลจริงอัตโนมัติ ({syncStatus.sourceName}):</span>
+                  <span className="font-semibold text-cyan-300 font-mono-tabular">
+                    {syncStatus.lastSyncedAt
+                      ? `อัปเดต ${new Date(syncStatus.lastSyncedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`
+                      : 'รอตรวจสอบหลังผลออก'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch lg:items-center gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch lg:items-center gap-2.5 shrink-0">
+            {onSyncLive && (
+              <button
+                type="button"
+                onClick={handleTriggerLiveSync}
+                disabled={isSyncingLive}
+                className="px-4 py-3.5 text-xs sm:text-sm font-bold text-cyan-200 bg-cyan-950/80 hover:bg-cyan-900/90 border border-cyan-500/50 rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+              >
+                <RotateCw className={`w-4 h-4 text-cyan-400 ${isSyncingLive ? 'animate-spin' : ''}`} />
+                <span>{isSyncingLive ? 'กำลังดึงผลจริง...' : 'ดึงผลจริงอัตโนมัติ'}</span>
+              </button>
+            )}
             {onRecordDraw && (
               <button
                 type="button"
@@ -296,13 +337,13 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
                 className="px-4 py-3.5 text-xs sm:text-sm font-bold text-emerald-200 bg-emerald-950/80 hover:bg-emerald-900/90 border border-emerald-500/50 rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <PlusCircle className="w-4 h-4 text-emerald-400" />
-                <span>{showRecordForm ? 'ซ่อนฟอร์มบันทึกผล' : 'บันทึกผลหวยงวดล่าสุด'}</span>
+                <span>{showRecordForm ? 'ซ่อนฟอร์มกรอกเอง' : 'บันทึกผลเอง'}</span>
               </button>
             )}
             <button
               onClick={handleRunAnalysis}
               disabled={isLoading}
-              className="px-6 py-4 text-sm font-extrabold text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-300 hover:from-amber-300 hover:to-yellow-200 rounded-2xl shadow-xl shadow-amber-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+              className="px-5 py-3.5 text-sm font-extrabold text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-300 hover:from-amber-300 hover:to-yellow-200 rounded-2xl shadow-xl shadow-amber-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
             >
               <Zap className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               <span>
@@ -320,6 +361,28 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
           </div>
         </div>
       </div>
+
+      {liveSyncFeedback && (
+        <div
+          className={`p-3.5 rounded-2xl border text-xs sm:text-sm flex items-center justify-between gap-3 ${
+            liveSyncFeedback.type === 'success'
+              ? 'bg-cyan-950/60 border-cyan-500/50 text-cyan-100'
+              : 'bg-amber-950/60 border-amber-500/50 text-amber-100'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <RotateCw className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>{liveSyncFeedback.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLiveSyncFeedback(null)}
+            className="text-xs text-slate-400 hover:text-white px-2 py-0.5 cursor-pointer"
+          >
+            ปิด
+          </button>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 📝 IN-APP DRAW RECORDER: บันทึกผลหวยงวดล่าสุดเข้าสมอง AI     */}

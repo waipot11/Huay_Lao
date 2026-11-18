@@ -98,3 +98,18 @@ export const LOTTERY_CONFIGS: Record<LotteryType, LotteryTypeConfig> = {
 };
 
 export const ALL_LOTTERY_TYPES: LotteryType[] = ['lao', 'hanoi', 'malay'];
+
+export interface LiveSyncStatusInfo {
+  lotteryType: LotteryType;
+  sourceName: string;
+  lastCheckedAt: string | null;
+  lastSyncedAt: string | null;
+  latestLiveDrawDate: string | null;
+  latestLiveNumbers: string | null;
+  addedCount: number;
+  updatedCount: number;
+  lastResultSummary: string | null;
+  lastError: string | null;
+  isSyncing: boolean;
+}
+
