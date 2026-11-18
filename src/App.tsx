@@ -12,8 +12,22 @@ import { BannerCardStudio } from './components/BannerCardStudio';
 import { StatisticsTab } from './components/StatisticsTab';
 import { computeComprehensiveStats, getUpcomingLaoDraw, ComprehensiveStats, UpcomingDrawInfo } from './utils/lotteryStats';
 import { HISTORICAL_DRAWS, LaoLotteryDraw } from './data/laoLotteryHistory';
+import { HANOI_HISTORICAL_DRAWS } from './data/hanoiLotteryHistory';
+import { MALAY_HISTORICAL_DRAWS } from './data/malayLotteryHistory';
+import { LotteryType, LOTTERY_CONFIGS } from './utils/lotteryTypes';
 
-function buildAnalysisFromStats(statsData: ComprehensiveStats, upcomingData: UpcomingDrawInfo): AIAnalysisResult {
+function getBaseDrawsForType(type: LotteryType): LaoLotteryDraw[] {
+  if (type === 'hanoi') return HANOI_HISTORICAL_DRAWS;
+  if (type === 'malay') return MALAY_HISTORICAL_DRAWS;
+  return HISTORICAL_DRAWS;
+}
+
+function buildAnalysisFromStats(
+  statsData: ComprehensiveStats,
+  upcomingData: UpcomingDrawInfo,
+  lotteryType: LotteryType = 'lao'
+): AIAnalysisResult {
+  const cfg = LOTTERY_CONFIGS[lotteryType];
   const conv3D = statsData.threeDigitConviction;
   const conv4D = statsData.fourDigitConviction;
   const portfolio15 = conv3D.fifteenSetsPortfolio;
@@ -25,6 +39,9 @@ function buildAnalysisFromStats(statsData: ComprehensiveStats, upcomingData: Upc
   const animalMain = conv3D.animalLink;
   const animalBackup = conv3D.animalBackup || conv4D.animalLink;
   const doubleShieldList = portfolio15.doubleShieldSets || conv3D.doubleShieldSets || [];
+  const animalLine = cfg.hasAnimals
+    ? `\n🐉 นามสัตว์มงคล: ${animalMain.name} (${animalMain.number}) / ${animalBackup.name} (${animalBackup.number})`
+    : '';
 
   return {
     targetDrawDate: upcomingData.drawDate,
@@ -40,17 +57,19 @@ function buildAnalysisFromStats(statsData: ComprehensiveStats, upcomingData: Upc
     threeDigitsSwap: conv3D.permutations6.filter((x) => x !== conv3D.mainPick),
     twoDigitsTop: topList,
     twoDigitsBottom: bottomList,
-    animalPicks: [
-      { name: animalMain.name, number: animalMain.number, reason: `ตรงกับชุด 2 ตัวบนเด่นประจำ${upcomingData.dayOfWeekThai}` },
-      { name: animalBackup.name, number: animalBackup.number, reason: `ตรงกับชุด 2 ตัวล่างกำลังวัน${upcomingData.dayOfWeekThai}` },
-    ],
+    animalPicks: cfg.hasAnimals
+      ? [
+          { name: animalMain.name, number: animalMain.number, reason: `ตรงกับชุด 2 ตัวบนเด่นประจำ${upcomingData.dayOfWeekThai}` },
+          { name: animalBackup.name, number: animalBackup.number, reason: `ตรงกับชุด 2 ตัวล่างกำลัง${upcomingData.dayOfWeekThai}` },
+        ]
+      : [],
     confidenceScore: conv3D.confidenceScore,
     rationale: conv3D.strategyReason,
     sourceBreakdown: {
       historical: 15,
       dayOfWeek: 12,
       kamlangWan: 12,
-      animal: 10,
+      animal: cfg.hasAnimals ? 10 : 0,
       flowMomentum: 12,
       killNumbers: 5,
       crossPosition: 12,
@@ -58,16 +77,17 @@ function buildAnalysisFromStats(statsData: ComprehensiveStats, upcomingData: Upc
       expertConsensus: 7,
       aiDeep: 12,
     },
-    facebookPostContent: `🇱🇦 สรุปแนวทางหวยลาวพัฒนา ประจำ${upcomingData.drawDateThai} 🇱🇦\n(Engine V3 Mean-Reversion + Due-Gap จาก ${statsData.totalDraws} งวด • Backtest วิ่ง/รูด ${statsData.backtestReport.run2Rate}%)\n\n⭐ วิ่ง / รูด 19 ประตู (ตัวทำกำไรหลัก): ${highlightMain} - ${highlightSecondary}\n🎯 เจาะ 2 ตัวบน (5 ชุดคัดพิเศษ): ${topList.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomList.slice(0, 4).join(' - ')}\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${conv3D.mainPick} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${conv3D.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (13 ชุดหลัก + ${doubleShieldList.length} เกราะกันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทอง): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงิน): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (หลักเสริม + กันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n\n⭐ 4 ตัวแจ็กพอตเสริม: ${conv3D.fourDigitJackpot}\n🐉 นามสัตว์มงคล: ${animalMain.name} (${animalMain.number}) / ${animalBackup.name} (${animalBackup.number})\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและความน่าจะเป็น\n#หวยลาว #แนวทางหวยลาว #วิ่งรูดหวยลาว #2ตัวบน #15ชุดกันหลุด #หวยพัฒนา #สถิติหวยลาว`,
+    facebookPostContent: `${cfg.flag} สรุปแนวทาง${cfg.name} ประจำ${upcomingData.drawDateThai} ${cfg.flag}\n(Engine V3 Mean-Reversion + Due-Gap จาก ${statsData.totalDraws} งวด • Backtest วิ่ง/รูด ${statsData.backtestReport.run2Rate}%)\n\n⭐ วิ่ง / รูด 19 ประตู (ตัวทำกำไรหลัก): ${highlightMain} - ${highlightSecondary}\n🎯 เจาะ 2 ตัวบน (5 ชุดคัดพิเศษ): ${topList.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomList.slice(0, 4).join(' - ')}\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${conv3D.mainPick} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${conv3D.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (13 ชุดหลัก + ${doubleShieldList.length} เกราะกันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทอง): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงิน): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (หลักเสริม + กันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n\n⭐ ${cfg.fourDigitsLabel} แจ็กพอตเสริม: ${conv3D.fourDigitJackpot}${animalLine}\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและความน่าจะเป็น\n${cfg.hashtags}`,
     generatedAt: new Date().toISOString(),
   };
 }
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'ai' | 'facebook' | 'telegram' | 'banner' | 'stats'>('ai');
+  const [lotteryType, setLotteryType] = useState<LotteryType>('lao');
   const [draws, setDraws] = useState<LaoLotteryDraw[]>(HISTORICAL_DRAWS);
-  const [stats, setStats] = useState<ComprehensiveStats>(() => computeComprehensiveStats(HISTORICAL_DRAWS));
-  const [upcoming, setUpcoming] = useState<UpcomingDrawInfo>(() => getUpcomingLaoDraw(new Date(), 5, HISTORICAL_DRAWS));
+  const [stats, setStats] = useState<ComprehensiveStats>(() => computeComprehensiveStats(HISTORICAL_DRAWS, new Date(), 'lao'));
+  const [upcoming, setUpcoming] = useState<UpcomingDrawInfo>(() => getUpcomingLaoDraw(new Date(), 5, HISTORICAL_DRAWS, 'lao'));
   const [isLoading, setIsLoading] = useState(false);
 
   const [fbConfig, setFbConfig] = useState<FacebookConfig>({
@@ -93,6 +113,8 @@ export default function App() {
     disableNotification: false,
     hoursAhead: 2,
     customAlertTime: '18:30',
+    earlyAlertTime: '16:30',
+    enabledLotteries: ['lao', 'hanoi', 'malay'],
     targetTime: '18:30 น.',
     status: 'disconnected',
   });
@@ -113,13 +135,55 @@ export default function App() {
     }
   };
 
-  // Initial Data Fetch + 30s Heartbeat
+  // Initial Global Configs (Facebook & Telegram) + 30s Heartbeat
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchGlobalConfigs = async () => {
       try {
-        const [statsRes, historyRes] = await Promise.all([fetch('/api/stats'), fetch('/api/history')]);
+        const [configRes, postsRes, tgCfgRes, tgLogsRes] = await Promise.all([
+          fetch('/api/facebook/config'),
+          fetch('/api/facebook/posts'),
+          fetch('/api/telegram/config'),
+          fetch('/api/telegram/logs'),
+        ]);
+        const configData = await configRes.json();
+        if (configData.success) setFbConfig(configData.config);
+
+        const postsData = await postsRes.json();
+        if (postsData.success) setPosts(postsData.posts);
+
+        const tgCfgData = await tgCfgRes.json();
+        if (tgCfgData.success) {
+          if (tgCfgData.config) setTelegramConfig(tgCfgData.config);
+          if (tgCfgData.schedulerStatus) setTelegramSchedulerStatus(tgCfgData.schedulerStatus);
+        }
+        const tgLogsData = await tgLogsRes.json();
+        if (tgLogsData.success && tgLogsData.logs) setTelegramLogs(tgLogsData.logs);
+      } catch (err) {
+        console.error('Initial config load error:', err);
+      }
+    };
+
+    fetchGlobalConfigs();
+
+    const heartbeatTimer = setInterval(() => {
+      refreshTelegramStatus();
+    }, 30000);
+
+    return () => clearInterval(heartbeatTimer);
+  }, []);
+
+  // Fetch Stats & History whenever active lotteryType changes
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLotteryData = async () => {
+      try {
+        const [statsRes, historyRes] = await Promise.all([
+          fetch(`/api/stats?type=${lotteryType}`),
+          fetch(`/api/history?type=${lotteryType}`),
+        ]);
         const statsData = await statsRes.json();
         const historyData = await historyRes.json();
+        if (cancelled) return;
 
         if (historyData.success && Array.isArray(historyData.draws)) {
           setDraws(historyData.draws);
@@ -128,51 +192,35 @@ export default function App() {
         if (statsData.success && statsData.stats && statsData.upcoming) {
           setStats(statsData.stats);
           setUpcoming(statsData.upcoming);
-          setAnalysis(buildAnalysisFromStats(statsData.stats, statsData.upcoming));
-        }
-
-        const configRes = await fetch('/api/facebook/config');
-        const configData = await configRes.json();
-        if (configData.success) {
-          setFbConfig(configData.config);
-        }
-
-        const postsRes = await fetch('/api/facebook/posts');
-        const postsData = await postsRes.json();
-        if (postsData.success) {
-          setPosts(postsData.posts);
-        }
-
-        const [tgCfgRes, tgLogsRes] = await Promise.all([
-          fetch('/api/telegram/config'),
-          fetch('/api/telegram/logs'),
-        ]);
-        const tgCfgData = await tgCfgRes.json();
-        if (tgCfgData.success) {
-          if (tgCfgData.config) setTelegramConfig(tgCfgData.config);
-          if (tgCfgData.schedulerStatus) setTelegramSchedulerStatus(tgCfgData.schedulerStatus);
-        }
-        const tgLogsData = await tgLogsRes.json();
-        if (tgLogsData.success && tgLogsData.logs) {
-          setTelegramLogs(tgLogsData.logs);
+          setAnalysis(buildAnalysisFromStats(statsData.stats, statsData.upcoming, lotteryType));
         }
       } catch (err) {
-        console.error('Initial data load error:', err);
+        console.error(`Lottery data load error (${lotteryType}):`, err);
       }
     };
 
-    fetchData();
-
-    // Keep server awake & refresh Telegram scheduler status every 30s while app is open
-    const heartbeatTimer = setInterval(() => {
-      refreshTelegramStatus();
-    }, 30000);
-
-    return () => clearInterval(heartbeatTimer);
-  }, []);
+    fetchLotteryData();
+    return () => {
+      cancelled = true;
+    };
+  }, [lotteryType]);
 
   // Initial default analysis built dynamically from stats (zero hardcoded picks)
-  const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(() => buildAnalysisFromStats(stats, upcoming));
+  const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(() => buildAnalysisFromStats(stats, upcoming, 'lao'));
+
+  // Fast optimistic switcher when changing lottery type
+  const handleChangeLotteryType = (nextType: LotteryType) => {
+    if (nextType === lotteryType) return;
+    const baseDraws = getBaseDrawsForType(nextType);
+    const cfg = LOTTERY_CONFIGS[nextType];
+    const nextStats = computeComprehensiveStats(baseDraws, new Date(), nextType);
+    const nextUpcoming = getUpcomingLaoDraw(new Date(), cfg.defaultDaysAheadPost, baseDraws, nextType);
+    setLotteryType(nextType);
+    setDraws(baseDraws);
+    setStats(nextStats);
+    setUpcoming(nextUpcoming);
+    setAnalysis(buildAnalysisFromStats(nextStats, nextUpcoming, nextType));
+  };
 
   // Record Latest Draw Handler -> recalculates entire engine for next draw
   const handleRecordDraw = async (payload: RecordDrawPayload) => {
@@ -180,18 +228,20 @@ export default function App() {
       const res = await fetch('/api/history/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ lotteryType, ...payload }),
       });
       const data = await res.json();
       if (data.success && data.stats && data.upcoming) {
         if (Array.isArray(data.draws)) setDraws(data.draws);
         setStats(data.stats);
         setUpcoming(data.upcoming);
-        setAnalysis(buildAnalysisFromStats(data.stats, data.upcoming));
+        setAnalysis(buildAnalysisFromStats(data.stats, data.upcoming, lotteryType));
         refreshTelegramStatus();
         return {
           success: true,
-          message: `บันทึกผล ${payload.threeDigitsTop} เข้าสมอง AI สำเร็จ — อัปเดตแนวทางงวดถัดไป (${data.upcoming.drawDateThai}) เป็นชุด ${data.stats.threeDigitConviction.mainPick} เรียบร้อย!`,
+          message:
+            data.message ||
+            `บันทึกผล ${payload.threeDigitsTop} เข้าสมอง AI สำเร็จ — อัปเดตแนวทางงวดถัดไป (${data.upcoming.drawDateThai}) เป็นชุด ${data.stats.threeDigitConviction.mainPick} เรียบร้อย!`,
         };
       }
       return { success: false, error: data.error || 'ไม่สามารถบันทึกผลหวยได้' };
@@ -208,6 +258,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          lotteryType,
           targetDate: upcoming.drawDateThai,
           focusDay: upcoming.dayOfWeekThai,
           customWeights: weights,
@@ -367,6 +418,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          lotteryType,
           customMessage,
           botToken: options?.botToken,
           chatId: options?.chatId,
@@ -400,7 +452,7 @@ export default function App() {
 
   const handleForceTelegramTrigger = async () => {
     try {
-      const res = await fetch('/api/telegram/cron-trigger?force=true', { method: 'POST' });
+      const res = await fetch(`/api/telegram/cron-trigger?force=true&type=${lotteryType}`, { method: 'POST' });
       const data = await res.json();
       if (data.logs) setTelegramLogs(data.logs);
       if (data.config) setTelegramConfig(data.config);
@@ -419,12 +471,15 @@ export default function App() {
         setActiveTab={setActiveTab}
         fbConnected={fbConfig.status === 'connected'}
         upcomingDateThai={upcoming.drawDateThai}
+        lotteryType={lotteryType}
+        onChangeLotteryType={handleChangeLotteryType}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
         {activeTab === 'ai' && (
           <AIAnalysisTab
+            lotteryType={lotteryType}
             stats={stats}
             upcoming={upcoming}
             analysis={analysis}
@@ -449,6 +504,7 @@ export default function App() {
 
         {activeTab === 'telegram' && (
           <TelegramNotifyTab
+            lotteryType={lotteryType}
             config={telegramConfig}
             schedulerStatus={telegramSchedulerStatus}
             upcoming={upcoming}
@@ -465,6 +521,7 @@ export default function App() {
         {activeTab === 'banner' && (
           <BannerCardStudio
             bannerData={{
+              lotteryType,
               drawDateThai: analysis?.targetDrawDateThai || upcoming.drawDateThai,
               highlightMain: analysis?.highlightMain || String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? '0'),
               highlightSecondary: analysis?.highlightSecondary || String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? '0'),
@@ -481,18 +538,18 @@ export default function App() {
                 stats.threeDigitConviction.animalLink,
                 stats.threeDigitConviction.animalBackup || stats.fourDigitConviction.animalLink,
               ],
-              pageName: fbConfig.pageName || 'เพจแนวทางหวยลาว AI มหาเฮง',
+              pageName: fbConfig.pageName || LOTTERY_CONFIGS[lotteryType].pageDefaultName,
             }}
           />
         )}
 
-        {activeTab === 'stats' && <StatisticsTab stats={stats} draws={draws} />}
+        {activeTab === 'stats' && <StatisticsTab lotteryType={lotteryType} stats={stats} draws={draws} />}
       </main>
 
       {/* Clean Footer */}
       <footer className="border-t border-slate-900 bg-slate-950/80 px-6 py-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>LaoLotto AI © 2026 • ระบบวิเคราะห์สถิติหวยลาวพัฒนา & โพสต์ Facebook อัตโนมัติล่วงหน้า 5 วัน</p>
+          <p>LaoLotto AI © 2026 • ระบบวิเคราะห์สถิติ 3 หวย (ลาวพัฒนา / ฮานอยปกติ / มาเลย์ Magnum 4D) & แจ้งเตือน Telegram อัตโนมัติ</p>
           <p className="text-slate-600">
             โปรดเสี่ยงโชคอย่างมีสติและรับผิดชอบ ข้อมูลในระบบคำนวณตามหลักสถิติและความน่าจะเป็น
           </p>

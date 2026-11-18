@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Zap,
@@ -29,6 +29,7 @@ import {
   Database,
 } from 'lucide-react';
 import { ComprehensiveStats, UpcomingDrawInfo, FourDigitConviction, ThreeDigitConviction, DataSourceItem } from '../utils/lotteryStats';
+import { LotteryType, LOTTERY_CONFIGS } from '../utils/lotteryTypes';
 
 export interface AIAnalysisResult {
   targetDrawDate: string;
@@ -61,6 +62,7 @@ export interface RecordDrawPayload {
 }
 
 interface AIAnalysisTabProps {
+  lotteryType?: LotteryType;
   stats: ComprehensiveStats;
   upcoming: UpcomingDrawInfo;
   analysis: AIAnalysisResult | null;
@@ -72,6 +74,7 @@ interface AIAnalysisTabProps {
 }
 
 export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
+  lotteryType = 'lao',
   stats,
   upcoming,
   analysis,
@@ -81,6 +84,7 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
   onGoToBanner,
   onRecordDraw,
 }) => {
+  const cfg = LOTTERY_CONFIGS[lotteryType];
   const [copied, setCopied] = useState(false);
   const [queuedAlert, setQueuedAlert] = useState(false);
   const [selectedSourceTab, setSelectedSourceTab] = useState<'all' | 'astro' | 'stats' | 'ai'>('all');
@@ -103,6 +107,11 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
   const [recordAnimal, setRecordAnimal] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordFeedback, setRecordFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    setRecordDate(upcoming.drawDate || new Date().toISOString().slice(0, 10));
+    setRecordFeedback(null);
+  }, [lotteryType, upcoming.drawDate]);
 
   // Active 3-Digit Prime Conviction (เต็งๆ เม็ดเดียว)
   const threeConviction = analysis?.threeDigitConviction || stats.threeDigitConviction;
@@ -249,15 +258,15 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold">
               <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>ระบบคำนวณ 10 มิติ • วิเคราะห์ลึก & ฟันธง 4 ตัวพัฒนา</span>
+              <span>{cfg.flag} ระบบคำนวณ Engine V3 • {cfg.name} ({cfg.drawTimeLabel})</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
-              วิเคราะห์เลขหวยลาว & วางเลขเด็ดฟันธง 4 ตัว
+              วิเคราะห์เลข{cfg.name} & วางเลขเด็ดฟันธง 3 ตัว / {cfg.fourDigitsLabel}
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              ยกระดับความแม่นยำด้วยการผสาน <strong>10 แหล่งข้อมูลสถิติเชิงลึก</strong> พร้อมสูตรตัดเลขดับ 100% คำนวณหาชุด 4 ตัวเม็ดเดียวที่มีความน่าจะเป็นสูงสุดประจำงวด
+              ยกระดับความแม่นยำด้วย <strong>Mean-Reversion + Positional Due-Gap + Markov Matrix</strong> สำหรับ{cfg.name} ({cfg.drawScheduleLabel}) คำนวณชุดวิ่ง/รูด 2 ตัวบน และพอร์ต 15 ชุดกันเบิ้ลที่มีความน่าจะเป็นสูงสุดประจำงวด
             </p>
 
             <div className="flex items-center gap-3 text-xs text-slate-300 pt-1 flex-wrap">
@@ -271,9 +280,9 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
 
               <div className="flex items-center gap-1.5 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
                 <Flame className="w-4 h-4 text-emerald-400" />
-                <span>แหล่งข้อมูลวิเคราะห์:</span>
+                <span>เวลาออกรางวัล:</span>
                 <span className="font-bold text-emerald-300 font-mono-tabular">
-                  10 แหล่งสถิติเชิงลึก
+                  {cfg.drawTimeLabel} ({stats.totalDraws} งวด)
                 </span>
               </div>
             </div>
@@ -325,16 +334,16 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
               <Database className="w-5 h-5 text-emerald-400" />
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-white">
-                  บันทึกผลหวยลาวพัฒนาล่าสุดเข้าฐานข้อมูล AI (ไม่ต้องแก้โค้ด)
+                  {cfg.flag} บันทึกผล{cfg.name}ล่าสุดเข้าฐานข้อมูล AI (ไม่ต้องแก้โค้ด)
                 </h3>
                 <p className="text-xs text-slate-400">
-                  เมื่อหวยออกแล้ว กรอกเลขท้าย 3 ตัวบน ระบบจะบันทึกเข้าสถิติ เปลี่ยนวันงวดถัดไป และคำนวณเลขชุดใหม่ทั้งระบบทันที
+                  เมื่อ{cfg.shortName}ออกแล้ว กรอกเลขท้าย 3 ตัวบน ระบบจะบันทึกเข้าสถิติ เปลี่ยนวันงวดถัดไป และคำนวณเลขชุดใหม่ทันที
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${cfg.hasAnimals ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-3 text-xs`}>
             <div className="space-y-1">
               <label className="text-slate-300 font-semibold block">วันที่ออกรางวัล *</label>
               <input
@@ -360,7 +369,7 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-slate-300 font-semibold block">4 ตัว (ไม่บังคับ)</label>
+              <label className="text-slate-300 font-semibold block">{cfg.fourDigitsLabel} (ไม่บังคับ)</label>
               <input
                 type="text"
                 maxLength={4}
@@ -383,16 +392,18 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-slate-300 font-semibold block">นามสัตว์ (ไม่บังคับ)</label>
-              <input
-                type="text"
-                placeholder="เช่น ตะขาบ"
-                value={recordAnimal}
-                onChange={(e) => setRecordAnimal(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-400"
-              />
-            </div>
+            {cfg.hasAnimals && (
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold block">นามสัตว์ (ไม่บังคับ)</label>
+                <input
+                  type="text"
+                  placeholder="เช่น ตะขาบ"
+                  value={recordAnimal}
+                  onChange={(e) => setRecordAnimal(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+            )}
           </div>
 
           {recordFeedback && (
@@ -564,9 +575,11 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
               <span className="font-mono font-bold text-white bg-slate-900 px-2.5 py-0.5 rounded border border-slate-800">
                 3 ตัวบน: {lastReview.actualThreeDigits} | 2 ตัวบน: {lastReview.actualTwoDigitsTop}
               </span>
-              <span className="font-mono text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                นามสัตว์: {lastReview.actualAnimal}
-              </span>
+              {cfg.hasAnimals && (
+                <span className="font-mono text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                  นามสัตว์: {lastReview.actualAnimal}
+                </span>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
@@ -1492,7 +1505,7 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
           <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-2">
             <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
               <Scale className="w-3.5 h-3.5 text-emerald-400" />
-              <span>สายวิ่ง/รูด 19 ประตู & นามสัตว์</span>
+              <span>{cfg.hasAnimals ? 'สายวิ่ง/รูด 19 ประตู & นามสัตว์' : 'สายวิ่ง/รูด 19 ประตู & Backtest V3'}</span>
             </span>
             <div className="space-y-1.5 pt-1 text-xs text-slate-300">
               <div className="flex items-center justify-between">
@@ -1501,12 +1514,21 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
                   เด่น {highlightMain} — รอง {highlightSecondary}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">นามสัตว์มงคล:</span>
-                <span className="font-bold text-sky-300">
-                  {animalMain.name} ({animalMain.number}) / {animalBackup.name} ({animalBackup.number})
-                </span>
-              </div>
+              {cfg.hasAnimals ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">นามสัตว์มงคล:</span>
+                  <span className="font-bold text-sky-300">
+                    {animalMain.name} ({animalMain.number}) / {animalBackup.name} ({animalBackup.number})
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">อัตราเข้า Backtest:</span>
+                  <span className="font-bold text-emerald-300 font-mono">
+                    {backtest.run2Rate}% ({backtest.run2Hits}/{backtest.testedDraws} งวด)
+                  </span>
+                </div>
+              )}
             </div>
             <p className="text-[11px] text-slate-400">เล่นวิ่ง/รูดคุ้มกันทุนอันดับแรกเพื่อลดความเสี่ยง</p>
           </div>
@@ -1553,7 +1575,7 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
                 selectedSourceTab === 'astro' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              กำลังวัน & นามสัตว์
+              {cfg.hasAnimals ? 'กำลังวัน & นามสัตว์' : 'กำลังวันมหาทักษา'}
             </button>
             <button
               onClick={() => setSelectedSourceTab('ai')}
@@ -1792,7 +1814,11 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
 
         <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-200 font-mono whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
           {analysis?.facebookPostContent ||
-            `🇱🇦 สรุปแนวทางหวยลาวพัฒนา ประจำ${upcoming.drawDateThai} 🇱🇦\n(Dynamic Engine V2: 10 ชุดหลัก + 5 ชุดเกราะกันเบิ้ล จาก ${stats.totalDraws} งวดสถิติ)\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${main3D} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${threeConviction.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุดเต็งตรง (Hybrid กันหลุด + กันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทองเน้นหนัก): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงินเต็งรอง): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (แกนเสริม + เกราะกันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n\n⭐ 4 ตัวแจ็กพอตเสริม: ${main4D}\n⭐ เลขเด่น: ${highlightMain}  |  เลขรอง: ${highlightSecondary}  |  วิ่ง/รูด: ${runningPair.join(' - ')}\n\n🎯 เจาะ 2 ตัวบน: ${topPairsList.slice(0, 3).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomPairsList.slice(0, 3).join(' - ')}\n\n🐉 นามสัตว์มงคล: ${animalMain.name} (${animalMain.number}) / ${animalBackup.name} (${animalBackup.number})\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและปัญญาประดิษฐ์\n#หวยลาว #แนวทางหวยลาว #3ตัวเต็ง #15ชุดกันหลุด #หวยพัฒนา #เลขเด็ดหวยลาว #หวยลาววันนี้ #สถิติหวยลาว`}
+            `${cfg.flag} สรุปแนวทาง${cfg.name} ประจำ${upcoming.drawDateThai} ${cfg.flag}\n(Engine V3 Mean-Reversion + Due-Gap จาก ${stats.totalDraws} งวด • Backtest วิ่ง/รูด ${stats.backtestReport.run2Rate}%)\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${main3D} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${threeConviction.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (${15 - doubleShieldCount} ชุดหลัก + ${doubleShieldCount} กันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทองเน้นหนัก): ${portfolio15.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงินเต็งรอง): ${portfolio15.tier2Silver.join(' - ')}\n🥉 Tier 3 (แกนเสริม + เกราะกันเบิ้ล): ${portfolio15.tier3Shield.join(' - ')}\n\n⭐ ${cfg.fourDigitsLabel} แจ็กพอตเสริม: ${main4D}\n⭐ เลขเด่น: ${highlightMain}  |  เลขรอง: ${highlightSecondary}  |  วิ่ง/รูด: ${runningPair.join(' - ')}\n\n🎯 เจาะ 2 ตัวบน: ${topPairsList.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bottomPairsList.slice(0, 4).join(' - ')}${
+              cfg.hasAnimals
+                ? `\n\n🐉 นามสัตว์มงคล: ${animalMain.name} (${animalMain.number}) / ${animalBackup.name} (${animalBackup.number})`
+                : ''
+            }\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและความน่าจะเป็น\n${cfg.hashtags}`}
         </div>
       </div>
     </div>

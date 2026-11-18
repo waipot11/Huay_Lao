@@ -28,6 +28,7 @@ import {
   Hash,
 } from 'lucide-react';
 import { UpcomingDrawInfo, ComprehensiveStats } from '../utils/lotteryStats';
+import { LotteryType, LOTTERY_CONFIGS, ALL_LOTTERY_TYPES } from '../utils/lotteryTypes';
 
 export interface TelegramConfig {
   enabled: boolean;
@@ -38,11 +39,15 @@ export interface TelegramConfig {
   disableNotification?: boolean;
   hoursAhead: number;
   customAlertTime: string;
+  earlyAlertTime?: string;
+  enabledLotteries?: LotteryType[];
   targetTime: string;
   status: 'connected' | 'disconnected' | 'testing';
   botUsername?: string;
   lastNotifiedDate?: string;
   lastAttemptDate?: string;
+  lastNotifiedByType?: Partial<Record<LotteryType, string>>;
+  lastAttemptByType?: Partial<Record<LotteryType, string>>;
   lastSyncTime?: string;
 }
 
@@ -53,9 +58,22 @@ export interface TelegramSchedulerStatus {
   isDrawDay: boolean;
   targetAlertTime: string;
   targetAlertHHMM: string;
+  earlyAlertTime?: string;
+  earlyAlertHHMM?: string;
   isPastAlertTimeToday: boolean;
   isBeforeDrawToday: boolean;
   enabled: boolean;
+  enabledLotteries?: LotteryType[];
+  byTypeStatus?: Record<
+    LotteryType,
+    {
+      enabled: boolean;
+      isDrawDayToday: boolean;
+      alertTimeLabel: string;
+      drawTimeLabel: string;
+      notifiedToday: boolean;
+    }
+  >;
   hasToken: boolean;
   hasChatId: boolean;
   groupCount: number;
@@ -72,6 +90,7 @@ export interface TelegramSchedulerStatus {
 export interface TelegramNotificationLog {
   id: string;
   sentAt: string;
+  lotteryType?: LotteryType;
   drawDate: string;
   drawDateThai: string;
   status: 'success' | 'failed' | 'simulated';
@@ -89,6 +108,7 @@ export interface DetectedTelegramGroup {
 }
 
 interface TelegramNotifyTabProps {
+  lotteryType?: LotteryType;
   config: TelegramConfig;
   schedulerStatus?: TelegramSchedulerStatus | null;
   upcoming: UpcomingDrawInfo;
@@ -117,6 +137,7 @@ interface TelegramNotifyTabProps {
 }
 
 export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
+  lotteryType = 'lao',
   config,
   schedulerStatus,
   upcoming,
@@ -128,6 +149,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
   onRefreshStatus,
   onForceTrigger,
 }) => {
+  const cfg = LOTTERY_CONFIGS[lotteryType];
   const [enabled, setEnabled] = useState(config.enabled ?? true);
   const [botToken, setBotToken] = useState(config.botToken || '');
   const [chatId, setChatId] = useState(config.chatId || '');
@@ -136,6 +158,12 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
   const [disableNotification, setDisableNotification] = useState(Boolean(config.disableNotification));
   const [hoursAhead, setHoursAhead] = useState(config.hoursAhead || 2);
   const [customAlertTime, setCustomAlertTime] = useState(config.customAlertTime || '18:30');
+  const [earlyAlertTime, setEarlyAlertTime] = useState(config.earlyAlertTime || '16:30');
+  const [enabledLotteries, setEnabledLotteries] = useState<LotteryType[]>(
+    config.enabledLotteries && config.enabledLotteries.length > 0
+      ? config.enabledLotteries
+      : ['lao', 'hanoi', 'malay']
+  );
   const [showToken, setShowToken] = useState(false);
 
   const [isTesting, setIsTesting] = useState(false);
@@ -159,6 +187,8 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
     if (config.disableNotification !== undefined) setDisableNotification(Boolean(config.disableNotification));
     if (config.hoursAhead) setHoursAhead(config.hoursAhead);
     if (config.customAlertTime) setCustomAlertTime(config.customAlertTime);
+    if (config.earlyAlertTime) setEarlyAlertTime(config.earlyAlertTime);
+    if (config.enabledLotteries && config.enabledLotteries.length > 0) setEnabledLotteries(config.enabledLotteries);
     if (config.botUsername) setDetectedBotName(config.botUsername);
   }, [
     config.enabled,
@@ -169,6 +199,8 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
     config.disableNotification,
     config.hoursAhead,
     config.customAlertTime,
+    config.earlyAlertTime,
+    config.enabledLotteries,
     config.botUsername,
   ]);
 
@@ -184,14 +216,19 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
   const animalBackup = `${conv3D.animalBackup?.name || conv3D.animalLink.name} (${conv3D.animalBackup?.number || conv3D.animalLink.number})`;
   const doubleShieldList = portfolio15.doubleShieldSets || conv3D.doubleShieldSets || [];
 
-  const targetNotificationTime = `${customAlertTime || '18:30'} น.`;
+  const targetNotificationTime =
+    lotteryType === 'lao' ? `${customAlertTime || '18:30'} น.` : `${earlyAlertTime || '16:30'} น.`;
+  const closeHint = lotteryType === 'lao' ? '20:00 น.' : '18:00 น.';
+  const animalPreviewLine = cfg.hasAnimals
+    ? `\n🐉 <b>นามสัตว์มงคล:</b> ${animalMain} / ${animalBackup}`
+    : '';
   const cronTriggerUrl =
     typeof window !== 'undefined' ? `${window.location.origin}/api/telegram/cron-trigger` : '/api/telegram/cron-trigger';
 
-  const telegramHtmlPreviewMessage = `🇱🇦<b>【 แจ้งเตือนสมาชิกกลุ่ม! หวยลาวพัฒนาออกวันนี้ 】</b>🇱🇦
-⏰ เวลาแจ้งเตือน ${targetNotificationTime} (หวยออกเวลา 20:30 น.)
+  const telegramHtmlPreviewMessage = `${cfg.flag}<b>【 แจ้งเตือนสมาชิกกลุ่ม! ${cfg.name}ออกวันนี้ 】</b>${cfg.flag}
+⏰ เวลาแจ้งเตือน ${targetNotificationTime} (หวยออกเวลา ${cfg.drawTimeLabel})
 📅 งวดประจำ${upcoming.drawDateThai}
-📊 <i>Engine V3 Mean-Reversion (Backtest 35 งวด: วิ่ง/รูด ${stats.backtestReport.run2Rate}%)</i>
+📊 <i>Engine V3 Mean-Reversion (Backtest ${stats.backtestReport.testedDraws} งวด: วิ่ง/รูด ${stats.backtestReport.run2Rate}%)</i>
 
 ⭐ <b>วิ่ง/รูด 19 ประตู (เด่นสุด):</b> <code>${highlightMain}</code> - <code>${highlightSecondary}</code>
 🎯 <b>2 ตัวบน (5 ชุดคัดพิเศษ):</b> <code>${topPairs}</code>
@@ -207,10 +244,9 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
     doubleShieldList.length > 0 ? `\n🛡️ <b>เกราะกันเบิ้ล:</b> <code>${doubleShieldList.join(' - ')}</code>` : ''
   }
 
-⭐ <b>4 ตัวแจ็กพอตเสริม:</b> <code>${main4D}</code>
-🐉 <b>นามสัตว์มงคล:</b> ${animalMain} / ${animalBackup}
+⭐ <b>${cfg.fourDigitsLabel} แจ็กพอตเสริม:</b> <code>${main4D}</code>${animalPreviewLine}
 
-⚠️ <i>ระบบปิดรับแทงประมาณ 20:00 น. ขอให้สมาชิกทุกท่านเฮงๆ ปังๆ ครับ!</i> 💰✨`;
+⚠️ <i>ระบบปิดรับแทงประมาณ ${closeHint} ขอให้สมาชิกทุกท่านเฮงๆ ปังๆ ครับ!</i> 💰✨`;
 
   const telegramPlainMessage = telegramHtmlPreviewMessage.replace(/<[^>]+>/g, '');
 
@@ -218,6 +254,16 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
     setHoursAhead(hours);
     const computedHour = Math.max(0, 20 - hours);
     setCustomAlertTime(`${String(computedHour).padStart(2, '0')}:30`);
+  };
+
+  const handleToggleLotteryChannel = (lt: LotteryType) => {
+    setEnabledLotteries((prev) => {
+      if (prev.includes(lt)) {
+        const next = prev.filter((x) => x !== lt);
+        return next.length > 0 ? next : [lt];
+      }
+      return [...prev, lt];
+    });
   };
 
   const handleCopySecretKey = (keyName: string) => {
@@ -239,11 +285,13 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
         disableNotification,
         hoursAhead,
         customAlertTime,
-        targetTime: targetNotificationTime,
+        earlyAlertTime,
+        enabledLotteries,
+        targetTime: `${customAlertTime || '18:30'} น.`,
       });
       setTestResult({
         type: 'success',
-        text: `บันทึกการตั้งค่า Telegram กลุ่มสมาชิกเรียบร้อยแล้ว (ตั้งเวลาส่งอัตโนมัติ ${targetNotificationTime})`,
+        text: `บันทึกการตั้งค่า Telegram กลุ่มสมาชิกเรียบร้อยแล้ว (ฮานอย/มาเลย์ ${earlyAlertTime} น. • หวยลาว ${customAlertTime} น.)`,
       });
       if (onRefreshStatus) await onRefreshStatus();
     } catch (e: any) {
@@ -330,7 +378,9 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
         disableNotification,
         hoursAhead,
         customAlertTime,
-        targetTime: targetNotificationTime,
+        earlyAlertTime,
+        enabledLotteries,
+        targetTime: `${customAlertTime || '18:30'} น.`,
       });
       const res = await onForceTrigger();
       if (res.result) {
@@ -409,9 +459,8 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-300 mt-1.5 leading-relaxed">
-                ส่งแนวทางหวยลาวพร้อมเลข 3 ตัวเต็ง & พอร์ต 15 ชุดตรงเข้า{' '}
-                <strong>กลุ่มสมาชิก Telegram (Group / Supergroup / Channel)</strong> ฟรีไม่จำกัดโควต้า เวลา{' '}
-                <strong className="text-sky-400 font-mono font-bold">{targetNotificationTime}</strong> ทุกวันจันทร์–ศุกร์ (หยุดเสาร์–อาทิตย์)
+                ส่งแนวทาง <strong>🇱🇦 หวยลาว (20:30 น.) • 🇻🇳 ฮานอยปกติ (18:30 น.) • 🇲🇾 มาเลย์ (18:30 น.)</strong> ตรงเข้า{' '}
+                <strong>กลุ่มสมาชิก Telegram</strong> ฟรีไม่จำกัดโควต้า (ตัวอย่างที่กำลังดู: {cfg.flag} {cfg.name} เตือนเวลา <strong className="text-sky-400 font-mono">{targetNotificationTime}</strong>)
               </p>
             </div>
           </div>
@@ -423,7 +472,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
               className="px-4 py-2.5 bg-[#229ED9] hover:bg-[#1e8ec4] text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-lg shadow-[#229ED9]/25 flex items-center gap-2 disabled:opacity-50 active:scale-95 cursor-pointer"
             >
               {isTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              <span>{isTesting ? 'กำลังส่งเข้ากลุ่ม Telegram...' : '✈️ ทดสอบส่งเข้ากลุ่มทันที'}</span>
+              <span>{isTesting ? 'กำลังส่งเข้ากลุ่ม Telegram...' : `✈️ ทดสอบส่ง ${cfg.shortName}`}</span>
             </button>
 
             <button
@@ -511,10 +560,10 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
                 </span>
                 {schedulerStatus.isDrawDay ? (
                   <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">
-                    วันนี้วันหวยลาวออก
+                    วันนี้มีหวยออกรางวัล
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">วันนี้ไม่มีออกรางวัล</span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">วันนี้ไม่มีรอบที่เปิดไว้</span>
                 )}
               </div>
               <div className="flex items-center gap-3 flex-wrap text-slate-400">
@@ -527,15 +576,39 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
                     ? `✅ ตั้งค่ากลุ่มแล้ว (${schedulerStatus.groupCount} กลุ่ม)`
                     : '❌ ยังไม่ระบุ Group Chat ID'}
                 </span>
-                <span>•</span>
-                <span className={schedulerStatus.alreadyNotifiedToday ? 'text-emerald-400' : 'text-amber-300'}>
-                  {schedulerStatus.alreadyNotifiedToday
-                    ? '✅ ส่งแจ้งเตือนเข้ากลุ่มรอบวันนี้แล้ว'
-                    : schedulerStatus.isDrawDay && schedulerStatus.isPastAlertTimeToday
-                    ? '⏰ เลยเวลาเตือนรอบวันนี้แล้ว (กดส่งด่วนได้เลย)'
-                    : `⏳ รอบแจ้งเตือนเวลา ${schedulerStatus.targetAlertTime}`}
-                </span>
               </div>
+              {schedulerStatus.byTypeStatus && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {ALL_LOTTERY_TYPES.map((lt) => {
+                    const st = schedulerStatus.byTypeStatus?.[lt];
+                    const item = LOTTERY_CONFIGS[lt];
+                    if (!st) return null;
+                    return (
+                      <span
+                        key={lt}
+                        className={`px-2 py-0.5 rounded-lg border text-[11px] font-medium ${
+                          !st.enabled
+                            ? 'bg-slate-900 border-slate-800 text-slate-500'
+                            : !st.isDrawDayToday
+                            ? 'bg-slate-900 border-slate-800 text-slate-400'
+                            : st.notifiedToday
+                            ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                            : 'bg-sky-950/60 border-sky-500/40 text-sky-300'
+                        }`}
+                      >
+                        {item.flag} {item.shortName}:{' '}
+                        {!st.enabled
+                          ? 'ปิดอยู่'
+                          : !st.isDrawDayToday
+                          ? 'วันนี้ไม่ออก'
+                          : st.notifiedToday
+                          ? 'ส่งแล้ววันนี้ ✅'
+                          : `รอส่ง ${st.alertTimeLabel}`}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -547,7 +620,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
               className="px-4 py-2 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
             >
               {isForcing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-              <span>{isForcing ? 'กำลังยิงเข้ากลุ่ม...' : '⚡ สั่งยิงเข้ากลุ่มรอบวันนี้ทันที'}</span>
+              <span>{isForcing ? 'กำลังยิงเข้ากลุ่ม...' : `⚡ สั่งยิง ${cfg.shortName} เข้ากลุ่มทันที`}</span>
             </button>
           )}
         </div>
@@ -806,49 +879,128 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
               </div>
             </div>
 
+            {/* Enabled Lottery Types Checkboxes */}
+            <div className="space-y-2.5 bg-slate-900/60 p-4 sm:p-5 rounded-2xl border border-slate-800">
+              <label className="text-xs font-bold text-slate-200 block">
+                เลือกประเภทหวยที่ต้องการให้บอทแจ้งเตือนเข้ากลุ่มอัตโนมัติ:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {ALL_LOTTERY_TYPES.map((lt) => {
+                  const item = LOTTERY_CONFIGS[lt];
+                  const isChecked = enabledLotteries.includes(lt);
+                  return (
+                    <label
+                      key={lt}
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        isChecked
+                          ? 'bg-sky-500/15 border-[#229ED9]/60 text-white'
+                          : 'bg-slate-950 border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleLotteryChannel(lt)}
+                        className="mt-0.5 accent-[#229ED9]"
+                      />
+                      <div className="text-xs leading-tight">
+                        <div className="font-bold">
+                          {item.flag} {item.shortName}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          ออก {item.drawTimeLabel} • {item.drawScheduleLabel}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Schedule Time */}
-            <div className="space-y-3 pt-1">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <label className="text-xs font-bold text-slate-300">
-                  ตั้งเวลาส่งเข้ากลุ่ม Telegram อัตโนมัติ (วันจันทร์–ศุกร์ เวลาไทย):
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-400">กำหนดเวลาเอง:</span>
-                  <input
-                    type="time"
-                    value={customAlertTime}
-                    onChange={(e) => setCustomAlertTime(e.target.value)}
-                    className="bg-slate-900 border border-[#229ED9]/50 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-sky-400 focus:outline-none"
-                  />
+            <div className="space-y-4 pt-1">
+              {/* Time 1: Early Alert for Hanoi & Malay (18:30 draws) */}
+              <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-xs font-bold text-rose-300">
+                    🇻🇳🇲🇾 เวลาเตือนหวยฮานอย (ปกติ) & หวยมาเลย์ (ออกรางวัล 18:30 น.):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400">กำหนดเวลาเอง:</span>
+                    <input
+                      type="time"
+                      value={earlyAlertTime}
+                      onChange={(e) => setEarlyAlertTime(e.target.value)}
+                      className="bg-slate-950 border border-rose-500/40 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-rose-300 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { time: '15:30', label: '15:30 น. (ก่อน 3 ชม.)' },
+                    { time: '16:30', label: '16:30 น. ★ แนะนำ' },
+                    { time: '17:30', label: '17:30 น. (โค้งสุดท้าย)' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.time}
+                      type="button"
+                      onClick={() => setEarlyAlertTime(preset.time)}
+                      className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                        earlyAlertTime === preset.time
+                          ? 'bg-rose-500/20 border-rose-400 text-white'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[
-                  { hours: 1, time: '19:30', label: 'ก่อน 1 ชม. (19:30 น.)', desc: 'เตือนโค้งสุดท้ายก่อนปิดรับ' },
-                  { hours: 2, time: '18:30', label: 'ก่อน 2 ชม. (18:30 น.)', desc: '★ แนะนำที่สุด มีเวลาเตรียมโพย' },
-                  { hours: 3, time: '17:30', label: 'ก่อน 3 ชม. (17:30 น.)', desc: 'ส่งเข้ากลุ่มช่วงเย็น' },
-                ].map((item) => {
-                  const isSelected = customAlertTime === item.time;
-                  return (
-                    <button
-                      key={item.hours}
-                      type="button"
-                      onClick={() => handleSelectPresetHours(item.hours)}
-                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-sky-500/20 border-[#229ED9] text-white shadow-sm ring-1 ring-[#229ED9]'
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm text-slate-100">{item.label}</span>
-                        {isSelected && <CheckCircle2 className="w-4 h-4 text-[#229ED9]" />}
-                      </div>
-                      <span className="text-[11px] text-slate-400 mt-1 block">{item.desc}</span>
-                    </button>
-                  );
-                })}
+              {/* Time 2: Lao Alert (20:30 draws) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-xs font-bold text-slate-300">
+                    🇱🇦 เวลาเตือนหวยลาวพัฒนา (ออกรางวัล 20:30 น. วันจันทร์–ศุกร์):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400">กำหนดเวลาเอง:</span>
+                    <input
+                      type="time"
+                      value={customAlertTime}
+                      onChange={(e) => setCustomAlertTime(e.target.value)}
+                      className="bg-slate-900 border border-[#229ED9]/50 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-sky-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { hours: 1, time: '19:30', label: 'ก่อน 1 ชม. (19:30 น.)', desc: 'เตือนโค้งสุดท้ายก่อนปิดรับ' },
+                    { hours: 2, time: '18:30', label: 'ก่อน 2 ชม. (18:30 น.)', desc: '★ แนะนำที่สุด มีเวลาเตรียมโพย' },
+                    { hours: 3, time: '17:30', label: 'ก่อน 3 ชม. (17:30 น.)', desc: 'ส่งเข้ากลุ่มช่วงเย็น' },
+                  ].map((item) => {
+                    const isSelected = customAlertTime === item.time;
+                    return (
+                      <button
+                        key={item.hours}
+                        type="button"
+                        onClick={() => handleSelectPresetHours(item.hours)}
+                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-sky-500/20 border-[#229ED9] text-white shadow-sm ring-1 ring-[#229ED9]'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm text-slate-100">{item.label}</span>
+                          {isSelected && <CheckCircle2 className="w-4 h-4 text-[#229ED9]" />}
+                        </div>
+                        <span className="text-[11px] text-slate-400 mt-1 block">{item.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -900,13 +1052,13 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
 
               <div className="space-y-3 text-xs">
                 <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
-                  <span className="text-slate-400">งวดถัดไป:</span>
+                  <span className="text-slate-400">งวดถัดไป ({cfg.shortName}):</span>
                   <span className="font-bold text-amber-300">{upcoming.drawDateThai}</span>
                 </div>
 
                 <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
                   <span className="text-slate-400">เวลาออกรางวัล:</span>
-                  <span className="font-bold text-slate-200 font-mono">20:30 น. ({upcoming.dayOfWeekThai})</span>
+                  <span className="font-bold text-slate-200 font-mono">{cfg.drawTimeLabel} ({upcoming.dayOfWeekThai})</span>
                 </div>
 
                 <div className="p-3 bg-sky-950/40 rounded-xl border border-[#229ED9]/30 flex items-center justify-between">
@@ -932,8 +1084,8 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
                   <span className="text-lg font-black text-amber-400 font-mono tracking-wider">{main3D}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs mt-1">
-                  <span className="text-slate-400">พอร์ต V3 (13+2):</span>
-                  <span className="text-xs font-bold text-sky-400">13 ชุดหลัก + 2 ชุดกันเบิ้ล</span>
+                  <span className="text-slate-400">พอร์ต V3 ({15 - doubleShieldList.length}+{doubleShieldList.length}):</span>
+                  <span className="text-xs font-bold text-sky-400">{15 - doubleShieldList.length} ชุดหลัก + {doubleShieldList.length} กันเบิ้ล</span>
                 </div>
               </div>
             </div>
@@ -947,7 +1099,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
                 </h4>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                นำลิงก์นี้ไปตั้งเวลาที่ <strong className="text-white">cron-job.org</strong> (ฟรี) ให้ยิงทุกวันจันทร์–ศุกร์ เวลา {customAlertTime} น. เพื่อปลุกเซิร์ฟเวอร์ให้ส่งเข้ากลุ่ม Telegram ตรงเวลาแม้ปิดเว็บ:
+                นำลิงก์นี้ไปตั้งเวลาที่ <strong className="text-white">cron-job.org</strong> (ฟรี) ให้ยิง<strong>ทุกวัน (จันทร์–อาทิตย์)</strong> ช่วง <strong className="text-rose-300">{earlyAlertTime} น.</strong> (สำหรับฮานอย/มาเลย์) และ <strong className="text-sky-300">{customAlertTime} น.</strong> (สำหรับลาว):
               </p>
               <div className="flex items-center gap-1.5">
                 <input
@@ -982,10 +1134,10 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
             <div className="w-full max-w-[380px] bg-[#0e1621] rounded-[32px] border-4 border-slate-700 shadow-2xl overflow-hidden flex flex-col">
               <div className="bg-[#17212b] px-4 py-3 flex items-center gap-3 border-b border-slate-800">
                 <div className="w-10 h-10 rounded-full bg-[#229ED9] text-white flex items-center justify-center font-bold text-sm shadow-md">
-                  🇱🇦
+                  {cfg.flag}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold text-white truncate">กลุ่มแนวทางหวยลาว AI VIP</div>
+                  <div className="text-xs font-bold text-white truncate">กลุ่มแนวทาง{cfg.shortName} AI VIP</div>
                   <div className="text-[10px] text-sky-400 font-medium">LaoLotto AI Bot • bot</div>
                 </div>
               </div>
@@ -993,7 +1145,7 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
               <div className="p-4 space-y-2">
                 <div className="bg-[#182533] border border-slate-700/60 text-slate-100 rounded-2xl rounded-bl-sm p-3.5 shadow-md text-xs leading-relaxed whitespace-pre-wrap">
                   <div className="font-bold text-sky-300 border-b border-slate-700 pb-1.5 mb-2">
-                    🇱🇦【 แจ้งเตือนสมาชิกกลุ่ม! หวยลาวพัฒนาออกวันนี้ 】🇱🇦
+                    {cfg.flag}【 แจ้งเตือนสมาชิกกลุ่ม! {cfg.name}ออกวันนี้ 】{cfg.flag}
                   </div>
                   <div className="text-[11px] text-slate-300 mb-2">
                     ⏰ เวลาแจ้งเตือน {targetNotificationTime} | งวดประจำ{upcoming.drawDateThai}
@@ -1006,16 +1158,16 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
                     </div>
                   </div>
                   <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-2.5 my-2 text-[10px] text-slate-200 space-y-0.5">
-                    <div className="font-bold text-sky-300">🛡️ พอร์ต 15 ชุด Hybrid V2 (10 ชุดหลัก + 5 ชุดกันเบิ้ล):</div>
+                    <div className="font-bold text-sky-300">🛡️ พอร์ต 15 ชุด V3 ({15 - doubleShieldList.length} ชุดหลัก + {doubleShieldList.length} กันเบิ้ล):</div>
                     <div>🥇 Tier 1: {portfolio15.tier1Gold.join(' - ')}</div>
                     <div>🥈 Tier 2: {portfolio15.tier2Silver.join(' - ')}</div>
                     <div>🥉 Tier 3: {portfolio15.tier3Shield.join(' - ')}</div>
                   </div>
                   <div className="text-[11px] text-slate-300 space-y-0.5">
-                    <div>⭐ 4 ตัวเสริม: <strong className="text-white font-mono">{main4D}</strong></div>
+                    <div>⭐ {cfg.fourDigitsLabel}: <strong className="text-white font-mono">{main4D}</strong></div>
                     <div>⭐ เด่น {highlightMain} รอง {highlightSecondary} | วิ่ง/รูด: {highlightMain} - {highlightSecondary}</div>
                     <div>🎯 2 ตัวบน: {topPairs} | 2 ตัวล่าง: {bottomPairs}</div>
-                    <div>🐉 นามสัตว์: {animalMain} / {animalBackup}</div>
+                    {cfg.hasAnimals && <div>🐉 นามสัตว์: {animalMain} / {animalBackup}</div>}
                   </div>
                 </div>
               </div>
@@ -1148,8 +1300,9 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
               </div>
               <h4 className="text-sm font-bold text-white">ตั้งเวลาส่งเข้ากลุ่มแม้ปิดหน้าเว็บ</h4>
               <p className="text-xs text-slate-300 leading-relaxed">
-                ตั้ง Secrets <code>TELEGRAM_BOT_TOKEN</code> และ <code>TELEGRAM_CHAT_ID</code> ใน AI Studio Settings แล้วนำ URL ด้านล่างไปตั้งใน{' '}
-                <strong className="text-sky-400">cron-job.org</strong> เวลา <strong>{customAlertTime} น. (Asia/Bangkok) วันจันทร์–ศุกร์</strong>
+                ตั้ง Secrets <code>TELEGRAM_BOT_TOKEN</code> และ <code>TELEGRAM_CHAT_ID</code> ใน AI Studio / Render แล้วนำ URL ด้านล่างไปตั้งใน{' '}
+                <strong className="text-sky-400">cron-job.org</strong> ให้ยิง <strong>ทุกวัน (จันทร์–อาทิตย์)</strong> ช่วงเวลา{' '}
+                <strong>{earlyAlertTime} น.</strong> (สำหรับฮานอย/มาเลย์) และ <strong>{customAlertTime} น.</strong> (สำหรับลาว)
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <code className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-sky-300 overflow-x-auto">

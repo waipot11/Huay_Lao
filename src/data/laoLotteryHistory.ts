@@ -1,8 +1,10 @@
+import type { DayOfWeekEnglish } from '../utils/lotteryTypes';
+
 export interface LaoLotteryDraw {
   id: string;
   drawDate: string; // YYYY-MM-DD
   drawDateThai: string;
-  dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday';
+  dayOfWeek: DayOfWeekEnglish;
   dayOfWeekThai: string;
   sixDigits: string;
   fourDigits: string;

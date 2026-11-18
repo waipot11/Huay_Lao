@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart3,
   Search,
-  Filter,
   Calendar,
   Flame,
   Snowflake,
@@ -13,17 +12,48 @@ import {
 } from 'lucide-react';
 import { ComprehensiveStats } from '../utils/lotteryStats';
 import { LaoLotteryDraw, HISTORICAL_DRAWS, LAO_ANIMALS } from '../data/laoLotteryHistory';
+import { LotteryType, LOTTERY_CONFIGS, DayOfWeekEnglish } from '../utils/lotteryTypes';
 
 interface StatisticsTabProps {
+  lotteryType?: LotteryType;
   stats: ComprehensiveStats;
   draws?: LaoLotteryDraw[];
 }
 
-export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HISTORICAL_DRAWS }) => {
+const WEEKDAY_META: Array<{
+  dayNum: number;
+  dayEn: DayOfWeekEnglish;
+  label: string;
+  activeClass: string;
+}> = [
+  { dayNum: 1, dayEn: 'Monday', label: 'วันจันทร์', activeClass: 'bg-amber-500/20 text-amber-300' },
+  { dayNum: 2, dayEn: 'Tuesday', label: 'วันอังคาร', activeClass: 'bg-pink-500/20 text-pink-300' },
+  { dayNum: 3, dayEn: 'Wednesday', label: 'วันพุธ', activeClass: 'bg-emerald-500/20 text-emerald-300' },
+  { dayNum: 4, dayEn: 'Thursday', label: 'วันพฤหัสบดี', activeClass: 'bg-orange-500/20 text-orange-300' },
+  { dayNum: 5, dayEn: 'Friday', label: 'วันศุกร์', activeClass: 'bg-blue-500/20 text-blue-300' },
+  { dayNum: 6, dayEn: 'Saturday', label: 'วันเสาร์', activeClass: 'bg-purple-500/20 text-purple-300' },
+  { dayNum: 0, dayEn: 'Sunday', label: 'วันอาทิตย์', activeClass: 'bg-rose-500/20 text-rose-300' },
+];
+
+export const StatisticsTab: React.FC<StatisticsTabProps> = ({
+  lotteryType = 'lao',
+  stats,
+  draws = HISTORICAL_DRAWS,
+}) => {
+  const cfg = LOTTERY_CONFIGS[lotteryType];
   const [subView, setSubView] = useState<'history' | 'frequencies' | 'animals' | 'kamlang'>('history');
-  const [dayFilter, setDayFilter] = useState<'all' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'>('all');
+  const [dayFilter, setDayFilter] = useState<'all' | DayOfWeekEnglish>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [animalSearch, setAnimalSearch] = useState('');
+
+  useEffect(() => {
+    setDayFilter('all');
+    if (!cfg.hasAnimals && subView === 'animals') {
+      setSubView('history');
+    }
+  }, [lotteryType, cfg.hasAnimals]);
+
+  const activeWeekdayFilters = WEEKDAY_META.filter((w) => cfg.drawDays.includes(w.dayNum));
 
   // Filter draws
   const filteredDraws = draws.filter((draw) => {
@@ -49,10 +79,10 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-emerald-400" />
-            <span>คลังสถิติหวยลาว & ข้อมูลหลายแหล่ง (Multi-Source Statistics)</span>
+            <span>{cfg.flag} คลังสถิติ{cfg.name} & ข้อมูลหลายแหล่ง</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            รวบรวมผลรางวัลย้อนหลังจริง สถิติความถี่รายตำแหน่ง อัตราส่วนคู่-คี่ สูง-ต่ำ กำลังวัน และตำรานามสัตว์
+            สถิติผลรางวัลย้อนหลัง ความถี่รายตำแหน่ง อัตราส่วนคู่-คี่ สูง-ต่ำ และกำลังวันมหาทักษา ({cfg.drawScheduleLabel})
           </p>
         </div>
 
@@ -60,7 +90,7 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
         <div className="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto">
           <button
             onClick={() => setSubView('history')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
               subView === 'history'
                 ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -70,7 +100,7 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
           </button>
           <button
             onClick={() => setSubView('frequencies')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
               subView === 'frequencies'
                 ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -80,7 +110,7 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
           </button>
           <button
             onClick={() => setSubView('kamlang')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
               subView === 'kamlang'
                 ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -88,16 +118,18 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
           >
             กำลังวันมหาทักษา
           </button>
-          <button
-            onClick={() => setSubView('animals')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
-              subView === 'animals'
-                ? 'bg-slate-800 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            ตำรานามสัตว์ 40 ชนิด
-          </button>
+          {cfg.hasAnimals && (
+            <button
+              onClick={() => setSubView('animals')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                subView === 'animals'
+                  ? 'bg-slate-800 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              ตำรานามสัตว์ 40 ชนิด
+            </button>
+          )}
         </div>
       </div>
 
@@ -173,46 +205,17 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
               >
                 ทุกวัน
               </button>
-              <button
-                onClick={() => setDayFilter('Monday')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                  dayFilter === 'Monday' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                วันจันทร์
-              </button>
-              <button
-                onClick={() => setDayFilter('Tuesday')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                  dayFilter === 'Tuesday' ? 'bg-pink-500/20 text-pink-300' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                วันอังคาร
-              </button>
-              <button
-                onClick={() => setDayFilter('Wednesday')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                  dayFilter === 'Wednesday' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                วันพุธ
-              </button>
-              <button
-                onClick={() => setDayFilter('Thursday')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                  dayFilter === 'Thursday' ? 'bg-orange-500/20 text-orange-300' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                วันพฤหัสบดี
-              </button>
-              <button
-                onClick={() => setDayFilter('Friday')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                  dayFilter === 'Friday' ? 'bg-blue-500/20 text-blue-300' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                วันศุกร์
-              </button>
+              {activeWeekdayFilters.map((w) => (
+                <button
+                  key={w.dayEn}
+                  onClick={() => setDayFilter(w.dayEn)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    dayFilter === w.dayEn ? w.activeClass : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {w.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -223,9 +226,9 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
                 <tr>
                   <th className="py-3 px-4 font-semibold">งวดวันที่</th>
                   <th className="py-3 px-3 font-semibold">วัน</th>
-                  <th className="py-3 px-4 font-semibold text-right font-mono">6 ตัวเต็ม</th>
+                  <th className="py-3 px-4 font-semibold text-right font-mono">{cfg.fullDigitsLabel}</th>
                   <th className="py-3 px-4 font-semibold text-right font-mono text-amber-400">
-                    4 ตัวพัฒนา
+                    {cfg.fourDigitsLabel}
                   </th>
                   <th className="py-3 px-3 font-semibold text-right font-mono text-blue-400">
                     3 ตัวบน
@@ -236,14 +239,14 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
                   <th className="py-3 px-3 font-semibold text-right font-mono text-purple-400">
                     2 ตัวล่าง
                   </th>
-                  <th className="py-3 px-4 font-semibold">นามสัตว์</th>
+                  {cfg.hasAnimals && <th className="py-3 px-4 font-semibold">นามสัตว์</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80 bg-slate-900/60">
                 {filteredDraws.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 px-4 text-center text-slate-400 text-xs">
-                      ยังไม่มีข้อมูลงวดที่ตรงกับตัวกรองนี้ในฐานข้อมูล (หากเป็นงวดวันอังคารหรือวันพฤหัสบดี กรุณากดปุ่ม "บันทึกผลหวยงวดล่าสุด" ด้านบนเพื่อเพิ่มสถิติ)
+                    <td colSpan={cfg.hasAnimals ? 8 : 7} className="py-8 px-4 text-center text-slate-400 text-xs">
+                      ยังไม่มีข้อมูลงวดที่ตรงกับตัวกรองนี้ในฐานข้อมูล (สามารถกดปุ่ม "บันทึกผลหวยงวดล่าสุด" ในหน้าวิเคราะห์ AI เพื่อเพิ่มสถิติงวดจริงได้ทันที)
                     </td>
                   </tr>
                 ) : (
@@ -268,9 +271,11 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-purple-300 tabular-nums">
                         {draw.twoDigitsBottom}
                       </td>
-                      <td className="py-2.5 px-4 text-slate-300 whitespace-nowrap">
-                        {draw.animalName ? `${draw.animalName} (${draw.animalNumber})` : '-'}
-                      </td>
+                      {cfg.hasAnimals && (
+                        <td className="py-2.5 px-4 text-slate-300 whitespace-nowrap">
+                          {draw.animalName ? `${draw.animalName} (${draw.animalNumber})` : '-'}
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -363,10 +368,10 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Calendar className="w-5 h-5 text-amber-400" />
-              <span>สูตรกำลังวันมหาทักษาโบราณสำหรับหวยลาว (จันทร์–ศุกร์ 5 วันต่อสัปดาห์)</span>
+              <span>สูตรกำลังวันมหาทักษาสำหรับ{cfg.name} ({cfg.drawScheduleLabel})</span>
             </h3>
             <p className="text-xs text-slate-400 mt-1">
-              ศาสตร์คำนวณกำลังวันตามโหราศาสตร์พยากรณ์ตัวเลข ร่วมกับสถิติผลจริงของหวยลาวพัฒนา (หยุดเสาร์–อาทิตย์)
+              ศาสตร์คำนวณกำลังวันตามโหราศาสตร์พยากรณ์ตัวเลข ร่วมกับสถิติผลจริงของ{cfg.name}
             </p>
           </div>
 
@@ -420,7 +425,7 @@ export const StatisticsTab: React.FC<StatisticsTabProps> = ({ stats, draws = HIS
       )}
 
       {/* Sub View 4: Nam Sam 40 Animals */}
-      {subView === 'animals' && (
+      {cfg.hasAnimals && subView === 'animals' && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>

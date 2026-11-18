@@ -1,4 +1,5 @@
 import { LaoLotteryDraw, HISTORICAL_DRAWS, LAO_ANIMALS } from '../data/laoLotteryHistory';
+import { LotteryType, LOTTERY_CONFIGS, DayOfWeekEnglish } from './lotteryTypes';
 
 export interface DigitStat {
   digit: number;
@@ -7,7 +8,7 @@ export interface DigitStat {
   lastSeenDrawsAgo: number;
 }
 
-export type LaoDrawDay = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday';
+export type LaoDrawDay = DayOfWeekEnglish;
 
 export interface DayOfWeekStat {
   day: LaoDrawDay;
@@ -168,6 +169,7 @@ export interface BacktestReport {
 }
 
 export interface ComprehensiveStats {
+  lotteryType: LotteryType;
   totalDraws: number;
   double3DRatePercent: number;
   targetDayOfWeek: LaoDrawDay;
@@ -198,12 +200,13 @@ export interface ComprehensiveStats {
 }
 
 export interface UpcomingDrawInfo {
+  lotteryType: LotteryType;
   drawDate: string; // YYYY-MM-DD
   drawDateThai: string;
   dayOfWeek: LaoDrawDay;
   dayOfWeekThai: string;
-  drawTime: string; // "20:30 น."
-  postScheduledDate: string; // 5 days prior (YYYY-MM-DD)
+  drawTime: string; // "20:30 น." or "18:30 น."
+  postScheduledDate: string; // N days prior (YYYY-MM-DD)
   postScheduledDateThai: string;
   daysUntilDraw: number;
   daysUntilPost: number;
@@ -238,9 +241,12 @@ function generateUniquePermutations3D(code: string): string[] {
 
 export function getUpcomingLaoDraw(
   refDate: Date = new Date(),
-  daysAheadPosting: number = 5,
-  draws: LaoLotteryDraw[] = HISTORICAL_DRAWS
+  daysAheadPosting?: number,
+  draws: LaoLotteryDraw[] = HISTORICAL_DRAWS,
+  lotteryType: LotteryType = 'lao'
 ): UpcomingDrawInfo {
+  const cfg = LOTTERY_CONFIGS[lotteryType] || LOTTERY_CONFIGS.lao;
+  const effectiveDaysAhead = daysAheadPosting ?? cfg.defaultDaysAheadPost;
   const thaiMonths = [
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
@@ -259,11 +265,10 @@ export function getUpcomingLaoDraw(
 
   const todayStr = formatDateStr(candidate);
   const currentTotalMin = bangkokRef.getUTCHours() * 60 + bangkokRef.getUTCMinutes();
-  const isPastDrawCutoffToday = currentTotalMin > 20 * 60 + 35;
+  const isPastDrawCutoffToday = currentTotalMin > cfg.cutoffTotalMin;
 
-  // Since 2 April 2569 (2026), Lao Lottery draws 5 days/week: Monday-Friday (1..5), off Saturday & Sunday
   while (
-    ![1, 2, 3, 4, 5].includes(candidate.getUTCDay()) ||
+    !cfg.drawDays.includes(candidate.getUTCDay()) ||
     formatDateStr(candidate) <= latestDrawnDate ||
     (isPastDrawCutoffToday && formatDateStr(candidate) === todayStr)
   ) {
@@ -272,11 +277,13 @@ export function getUpcomingLaoDraw(
 
   const dayNum = candidate.getUTCDay();
   const dayMap: Record<number, { dayOfWeek: LaoDrawDay; dayOfWeekThai: string }> = {
+    0: { dayOfWeek: 'Sunday', dayOfWeekThai: 'วันอาทิตย์' },
     1: { dayOfWeek: 'Monday', dayOfWeekThai: 'วันจันทร์' },
     2: { dayOfWeek: 'Tuesday', dayOfWeekThai: 'วันอังคาร' },
     3: { dayOfWeek: 'Wednesday', dayOfWeekThai: 'วันพุธ' },
     4: { dayOfWeek: 'Thursday', dayOfWeekThai: 'วันพฤหัสบดี' },
     5: { dayOfWeek: 'Friday', dayOfWeekThai: 'วันศุกร์' },
+    6: { dayOfWeek: 'Saturday', dayOfWeekThai: 'วันเสาร์' },
   };
   const { dayOfWeek, dayOfWeekThai } = dayMap[dayNum] || { dayOfWeek: 'Wednesday', dayOfWeekThai: 'วันพุธ' };
 
@@ -288,7 +295,7 @@ export function getUpcomingLaoDraw(
   const drawDateThai = `${dayOfWeekThai}ที่ ${date} ${thaiMonths[month]} ${thaiYear}`;
 
   const postDate = new Date(candidate.getTime());
-  postDate.setUTCDate(postDate.getUTCDate() - daysAheadPosting);
+  postDate.setUTCDate(postDate.getUTCDate() - effectiveDaysAhead);
   const pYear = postDate.getUTCFullYear();
   const pMonth = postDate.getUTCMonth();
   const pDate = postDate.getUTCDate();
@@ -304,11 +311,12 @@ export function getUpcomingLaoDraw(
   const daysUntilPost = Math.ceil(diffMsPost / (1000 * 60 * 60 * 24));
 
   return {
+    lotteryType,
     drawDate: drawDateStr,
     drawDateThai,
     dayOfWeek,
     dayOfWeekThai,
-    drawTime: '20:30 น.',
+    drawTime: cfg.drawTimeLabel,
     postScheduledDate: postDateStr,
     postScheduledDateThai,
     daysUntilDraw,
@@ -683,11 +691,13 @@ function runWalkForwardBacktest(drawsDescending: LaoLotteryDraw[]): BacktestRepo
 
 export function computeComprehensiveStats(
   drawsInput: LaoLotteryDraw[] = HISTORICAL_DRAWS,
-  refDate: Date = new Date()
+  refDate: Date = new Date(),
+  lotteryType: LotteryType = 'lao'
 ): ComprehensiveStats {
+  const cfg = LOTTERY_CONFIGS[lotteryType] || LOTTERY_CONFIGS.lao;
   const draws = [...drawsInput].sort((a, b) => b.drawDate.localeCompare(a.drawDate));
   const totalDraws = draws.length;
-  const upcoming = getUpcomingLaoDraw(refDate, 5, draws);
+  const upcoming = getUpcomingLaoDraw(refDate, cfg.defaultDaysAheadPost, draws, lotteryType);
   const targetDay = upcoming.dayOfWeek;
 
   const overallCounts = new Array(10).fill(0);
@@ -711,11 +721,13 @@ export function computeComprehensiveStats(
   let double3DCount = 0;
 
   const dayBuckets: Record<LaoDrawDay, { total: number; digits: number[] }> = {
+    Sunday: { total: 0, digits: new Array(10).fill(0) },
     Monday: { total: 0, digits: new Array(10).fill(0) },
     Tuesday: { total: 0, digits: new Array(10).fill(0) },
     Wednesday: { total: 0, digits: new Array(10).fill(0) },
     Thursday: { total: 0, digits: new Array(10).fill(0) },
     Friday: { total: 0, digits: new Array(10).fill(0) },
+    Saturday: { total: 0, digits: new Array(10).fill(0) },
   };
 
   draws.forEach((draw, drawIndex) => {
@@ -836,7 +848,18 @@ export function computeComprehensiveStats(
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  const dayStats: Record<LaoDrawDay, DayOfWeekStat> = {
+  const allDayStats: Record<LaoDrawDay, DayOfWeekStat> = {
+    Sunday: {
+      day: 'Sunday',
+      dayThai: 'วันอาทิตย์',
+      totalDraws: dayBuckets.Sunday.total,
+      topDigits: dayBuckets.Sunday.digits
+        .map((count, digit) => ({ digit, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3),
+      kamlangWan: 6,
+      auspiciousDigits: [1, 6, 4, 9],
+    },
     Monday: {
       day: 'Monday',
       dayThai: 'วันจันทร์',
@@ -892,11 +915,39 @@ export function computeComprehensiveStats(
       kamlangWan: 21,
       auspiciousDigits: [6, 9, 3, 1],
     },
+    Saturday: {
+      day: 'Saturday',
+      dayThai: 'วันเสาร์',
+      totalDraws: dayBuckets.Saturday.total,
+      topDigits: dayBuckets.Saturday.digits
+        .map((count, digit) => ({ digit, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3),
+      kamlangWan: 10,
+      auspiciousDigits: [7, 0, 5, 8],
+    },
   };
+
+  const dayIndexToName: LaoDrawDay[] = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
+  const dayStats: Record<string, DayOfWeekStat> = {};
+  cfg.drawDays.forEach((dayIdx) => {
+    const dayKey = dayIndexToName[dayIdx];
+    if (dayKey && allDayStats[dayKey]) {
+      dayStats[dayKey] = allDayStats[dayKey];
+    }
+  });
 
   const latestDraw = draws[0];
   const latest3D = (latestDraw?.threeDigitsTop || '900').padStart(3, '0');
-  const targetDaySpec = dayStats[targetDay];
+  const targetDaySpec = allDayStats[targetDay] || allDayStats.Wednesday;
 
   const {
     main3D,
@@ -1035,8 +1086,8 @@ export function computeComprehensiveStats(
   ];
 
   // Dynamic Review based on latest draw
-  const isNov13Latest = latestDraw?.drawDate === '2026-11-13';
-  const latestReview = isNov13Latest
+  const isNov13LaoLatest = lotteryType === 'lao' && latestDraw?.drawDate === '2026-11-13';
+  const latestReview = isNov13LaoLatest
     ? {
         drawDateThai: latestDraw.drawDateThai,
         actualSixDigits: latestDraw.sixDigits,
@@ -1205,10 +1256,11 @@ export function computeComprehensiveStats(
     totalSum: hDigit + tDigit + uDigit,
     animalLink: animalPrimary,
     animalBackup: animalSecondary,
-    strategyReason: `Engine V3 (Mean-Reversion + Positional Due-Gap): ดึงเลขค้างรอบสูงสุด (${rankedDigits.slice(0, 2).join(' และ ')}) เป็นแกนวิ่ง/รูด (Backtest ${backtestReport.run2Rate}%) พร้อมสแกน 100 คู่ 2 ตัวบน (${twoTopList.slice(0, 5).join(', ')}) และพอร์ต 15 ชุดสำหรับ${upcoming.drawDateThai}`,
+    strategyReason: `Engine V3 [${cfg.name}] (Mean-Reversion + Positional Due-Gap): ดึงเลขค้างรอบสูงสุด (${rankedDigits.slice(0, 2).join(' และ ')}) เป็นแกนวิ่ง/รูด (Backtest ${backtestReport.run2Rate}%) พร้อมสแกน 100 คู่ 2 ตัวบน (${twoTopList.slice(0, 5).join(', ')}) และพอร์ต 15 ชุดสำหรับ${upcoming.drawDateThai}`,
   };
 
   return {
+    lotteryType,
     totalDraws,
     double3DRatePercent,
     targetDayOfWeek: targetDay,

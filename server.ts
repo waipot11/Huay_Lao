@@ -5,6 +5,9 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { HISTORICAL_DRAWS, LAO_ANIMALS, LaoLotteryDraw } from './src/data/laoLotteryHistory.ts';
+import { HANOI_HISTORICAL_DRAWS } from './src/data/hanoiLotteryHistory.ts';
+import { MALAY_HISTORICAL_DRAWS } from './src/data/malayLotteryHistory.ts';
+import { LotteryType, LOTTERY_CONFIGS, ALL_LOTTERY_TYPES, DayOfWeekEnglish } from './src/utils/lotteryTypes.ts';
 import { computeComprehensiveStats, getUpcomingLaoDraw } from './src/utils/lotteryStats.ts';
 
 dotenv.config();
@@ -62,35 +65,57 @@ interface ScheduledPost {
 
 const CONFIG_FILE = path.join(__dirname, '.fb_config.json');
 const POSTS_FILE = path.join(__dirname, '.fb_posts.json');
-const CUSTOM_DRAWS_FILE = path.join(__dirname, '.custom_draws.json');
+const CUSTOM_DRAWS_FILES: Record<LotteryType, string> = {
+  lao: path.join(__dirname, '.custom_draws.json'),
+  hanoi: path.join(__dirname, '.custom_draws_hanoi.json'),
+  malay: path.join(__dirname, '.custom_draws_malay.json'),
+};
 
-function loadCustomDraws(): LaoLotteryDraw[] {
+function resolveLotteryType(raw: any): LotteryType {
+  const s = String(raw || '').toLowerCase().trim();
+  if (s === 'hanoi') return 'hanoi';
+  if (s === 'malay') return 'malay';
+  return 'lao';
+}
+
+function getBaseDrawsByType(type: LotteryType): LaoLotteryDraw[] {
+  if (type === 'hanoi') return HANOI_HISTORICAL_DRAWS;
+  if (type === 'malay') return MALAY_HISTORICAL_DRAWS;
+  return HISTORICAL_DRAWS;
+}
+
+function loadCustomDrawsByType(type: LotteryType): LaoLotteryDraw[] {
   try {
-    if (fs.existsSync(CUSTOM_DRAWS_FILE)) {
-      return JSON.parse(fs.readFileSync(CUSTOM_DRAWS_FILE, 'utf-8'));
+    const filePath = CUSTOM_DRAWS_FILES[type];
+    if (fs.existsSync(filePath)) {
+      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     }
   } catch (e) {
-    console.error('Error reading custom draws file', e);
+    console.error(`Error reading custom draws file for ${type}`, e);
   }
   return [];
 }
 
-function saveCustomDraws(draws: LaoLotteryDraw[]) {
+function saveCustomDrawsByType(type: LotteryType, draws: LaoLotteryDraw[]) {
   try {
-    fs.writeFileSync(CUSTOM_DRAWS_FILE, JSON.stringify(draws, null, 2), 'utf-8');
+    fs.writeFileSync(CUSTOM_DRAWS_FILES[type], JSON.stringify(draws, null, 2), 'utf-8');
   } catch (e) {
-    console.error('Error saving custom draws', e);
+    console.error(`Error saving custom draws for ${type}`, e);
   }
 }
 
-let customDraws: LaoLotteryDraw[] = loadCustomDraws();
+const customDrawsMap: Record<LotteryType, LaoLotteryDraw[]> = {
+  lao: loadCustomDrawsByType('lao'),
+  hanoi: loadCustomDrawsByType('hanoi'),
+  malay: loadCustomDrawsByType('malay'),
+};
 
-function getAllDraws(): LaoLotteryDraw[] {
+function getAllDraws(type: LotteryType = 'lao'): LaoLotteryDraw[] {
   const map = new Map<string, LaoLotteryDraw>();
-  for (const d of HISTORICAL_DRAWS) {
+  for (const d of getBaseDrawsByType(type)) {
     map.set(d.drawDate, d);
   }
-  for (const cd of customDraws) {
+  for (const cd of customDrawsMap[type]) {
     map.set(cd.drawDate, cd);
   }
   return Array.from(map.values()).sort((a, b) => b.drawDate.localeCompare(a.drawDate));
@@ -200,20 +225,26 @@ function computeTargetAlertTime(hoursAhead: number, customAlertTime?: string): {
 
 // API Endpoints
 
-// 1. Get History (merged with user-recorded draws)
-app.get('/api/history', (_req: Request, res: Response) => {
-  const allDraws = getAllDraws();
+// 1. Get History (merged with user-recorded draws, supports ?type=lao|hanoi|malay)
+app.get('/api/history', (req: Request, res: Response) => {
+  const lotteryType = resolveLotteryType(req.query.type);
+  const allDraws = getAllDraws(lotteryType);
   res.json({
     success: true,
+    lotteryType,
+    config: LOTTERY_CONFIGS[lotteryType],
     draws: allDraws,
     data: allDraws,
-    animals: LAO_ANIMALS,
+    animals: lotteryType === 'lao' ? LAO_ANIMALS : {},
   });
 });
 
 // 1b. Add / Update Latest Draw Result & Recalibrate Stats
 app.post('/api/history/add', (req: Request, res: Response) => {
-  const { drawDate, threeDigitsTop, twoDigitsBottom, fourDigits, sixDigits, animalName } = req.body || {};
+  const { lotteryType: rawType, drawDate, threeDigitsTop, twoDigitsBottom, fourDigits, sixDigits, animalName } = req.body || {};
+  const lotteryType = resolveLotteryType(rawType);
+  const cfg = LOTTERY_CONFIGS[lotteryType];
+
   if (!drawDate || !threeDigitsTop || !/^\d{3}$/.test(String(threeDigitsTop).trim())) {
     return res.status(400).json({
       success: false,
@@ -222,9 +253,24 @@ app.post('/api/history/add', (req: Request, res: Response) => {
   }
 
   const t3 = String(threeDigitsTop).trim();
-  const f4 = fourDigits && /^\d{4}$/.test(String(fourDigits).trim()) ? String(fourDigits).trim() : `-${t3}`;
-  const s6 = sixDigits && /^\d{6}$/.test(String(sixDigits).trim()) ? String(sixDigits).trim() : `---${t3}`;
-  const b2 = twoDigitsBottom && /^\d{2}$/.test(String(twoDigitsBottom).trim()) ? String(twoDigitsBottom).trim() : (f4.length === 4 && /^\d{4}$/.test(f4) ? f4.slice(0, 2) : '--');
+  const clean4 = fourDigits ? String(fourDigits).trim() : '';
+  const cleanFull = sixDigits ? String(sixDigits).trim() : '';
+  const f4 = /^\d{4}$/.test(clean4)
+    ? clean4
+    : /^\d{4,6}$/.test(cleanFull)
+    ? cleanFull.slice(-4)
+    : `-${t3}`;
+  const s6 = /^\d{4,6}$/.test(cleanFull)
+    ? cleanFull
+    : /^\d{4}$/.test(f4)
+    ? f4
+    : `---${t3}`;
+  const b2 =
+    twoDigitsBottom && /^\d{2}$/.test(String(twoDigitsBottom).trim())
+      ? String(twoDigitsBottom).trim()
+      : /^\d{4}$/.test(f4)
+      ? f4.slice(0, 2)
+      : '--';
   const top2 = t3.slice(-2);
 
   const [y, m, d] = String(drawDate).split('-').map((n) => parseInt(n, 10));
@@ -232,21 +278,22 @@ app.post('/api/history/add', (req: Request, res: Response) => {
   const dayNum = dt.getUTCDay();
   const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
-  const weekdayMap: Record<number, { dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'; dayOfWeekThai: string; shortDay: string }> = {
+  const weekdayMap: Record<number, { dayOfWeek: DayOfWeekEnglish; dayOfWeekThai: string; shortDay: string }> = {
+    0: { dayOfWeek: 'Sunday', dayOfWeekThai: 'วันอาทิตย์', shortDay: 'อาทิตย์' },
     1: { dayOfWeek: 'Monday', dayOfWeekThai: 'วันจันทร์', shortDay: 'จันทร์' },
     2: { dayOfWeek: 'Tuesday', dayOfWeekThai: 'วันอังคาร', shortDay: 'อังคาร' },
     3: { dayOfWeek: 'Wednesday', dayOfWeekThai: 'วันพุธ', shortDay: 'พุธ' },
     4: { dayOfWeek: 'Thursday', dayOfWeekThai: 'วันพฤหัสบดี', shortDay: 'พฤหัสบดี' },
     5: { dayOfWeek: 'Friday', dayOfWeekThai: 'วันศุกร์', shortDay: 'ศุกร์' },
+    6: { dayOfWeek: 'Saturday', dayOfWeekThai: 'วันเสาร์', shortDay: 'เสาร์' },
   };
   const { dayOfWeek, dayOfWeekThai, shortDay } = weekdayMap[dayNum] || weekdayMap[3];
 
   const drawDateThai = `${shortDay} ${d} ${thaiMonths[(m || 1) - 1]} ${y + 543}`;
   const isPartial = !/^\d{4}$/.test(f4) || !/^\d{2}$/.test(b2);
 
-  // Match animal if omitted
-  let resolvedAnimalName = animalName ? String(animalName).trim() : '';
-  if (!resolvedAnimalName) {
+  let resolvedAnimalName = cfg.hasAnimals && animalName ? String(animalName).trim() : '';
+  if (cfg.hasAnimals && !resolvedAnimalName) {
     for (const [, a] of Object.entries(LAO_ANIMALS)) {
       if (a.numbers.includes(top2)) {
         resolvedAnimalName = a.name;
@@ -256,7 +303,7 @@ app.post('/api/history/add', (req: Request, res: Response) => {
   }
 
   const newDraw: LaoLotteryDraw = {
-    id: `lao-${drawDate}`,
+    id: `${lotteryType}-${drawDate}`,
     drawDate: String(drawDate),
     drawDateThai,
     dayOfWeek,
@@ -266,64 +313,90 @@ app.post('/api/history/add', (req: Request, res: Response) => {
     threeDigitsTop: t3,
     twoDigitsTop: top2,
     twoDigitsBottom: b2,
-    animalName: resolvedAnimalName || undefined,
-    animalNumber: top2,
+    animalName: cfg.hasAnimals ? resolvedAnimalName || undefined : undefined,
+    animalNumber: cfg.hasAnimals ? top2 : undefined,
     isPartial,
   };
 
-  customDraws = [newDraw, ...customDraws.filter((x) => x.drawDate !== newDraw.drawDate)];
-  saveCustomDraws(customDraws);
+  customDrawsMap[lotteryType] = [
+    newDraw,
+    ...customDrawsMap[lotteryType].filter((x) => x.drawDate !== newDraw.drawDate),
+  ];
+  saveCustomDrawsByType(lotteryType, customDrawsMap[lotteryType]);
 
-  const allDraws = getAllDraws();
-  const stats = computeComprehensiveStats(allDraws);
-  const upcoming = getUpcomingLaoDraw(new Date(), fbConfig.daysAhead || 5, allDraws);
+  const allDraws = getAllDraws(lotteryType);
+  const stats = computeComprehensiveStats(allDraws, new Date(), lotteryType);
+  const upcoming = getUpcomingLaoDraw(new Date(), cfg.defaultDaysAheadPost, allDraws, lotteryType);
 
   res.json({
     success: true,
-    message: `บันทึกผลงวด ${drawDateThai} (${t3}) และคำนวณแนวทางงวด ${upcoming.drawDateThai} ใหม่เรียบร้อยแล้ว!`,
+    lotteryType,
+    message: `บันทึกผล${cfg.shortName} งวด ${drawDateThai} (${t3}) และคำนวณแนวทางงวด ${upcoming.drawDateThai} ใหม่เรียบร้อยแล้ว!`,
     draws: allDraws,
     stats,
     upcoming,
   });
 });
 
-// 2. Get Comprehensive Stats
-app.get('/api/stats', (_req: Request, res: Response) => {
-  const draws = getAllDraws();
-  const stats = computeComprehensiveStats(draws);
-  const upcoming = getUpcomingLaoDraw(new Date(), fbConfig.daysAhead || 5, draws);
+// 2. Get Comprehensive Stats (supports ?type=lao|hanoi|malay)
+app.get('/api/stats', (req: Request, res: Response) => {
+  const lotteryType = resolveLotteryType(req.query.type);
+  const cfg = LOTTERY_CONFIGS[lotteryType];
+  const draws = getAllDraws(lotteryType);
+  const stats = computeComprehensiveStats(draws, new Date(), lotteryType);
+  const upcoming = getUpcomingLaoDraw(new Date(), cfg.defaultDaysAheadPost, draws, lotteryType);
   res.json({
     success: true,
+    lotteryType,
+    config: cfg,
     stats,
     upcoming,
   });
 });
 
-// 3. AI Analysis with Gemini 4 Hydrogen + Engine V3 Baseline
+// 3. AI Analysis with Gemini 4 Hydrogen + Engine V3 Baseline (supports lotteryType)
 app.post('/api/ai/analyze', async (req: Request, res: Response) => {
-  const draws = getAllDraws();
-  const stats = computeComprehensiveStats(draws);
-  const upcoming = getUpcomingLaoDraw(new Date(), fbConfig.daysAhead || 5, draws);
+  const { targetDate, customWeights, focusDay, lotteryType: rawType } = req.body || {};
+  const lotteryType = resolveLotteryType(rawType || req.query.type);
+  const cfg = LOTTERY_CONFIGS[lotteryType];
+  const draws = getAllDraws(lotteryType);
+  const stats = computeComprehensiveStats(draws, new Date(), lotteryType);
+  const upcoming = getUpcomingLaoDraw(new Date(), cfg.defaultDaysAheadPost, draws, lotteryType);
   const defaultConv3D = stats.threeDigitConviction;
   const defaultConv4D = stats.fourDigitConviction;
   const mainD = String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? defaultConv3D.mainPick[0]);
   const secD = String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? defaultConv3D.mainPick[1]);
   const thirdD = String(stats.recommendedRunDigits?.[2] ?? stats.hotDigits[2] ?? defaultConv3D.mainPick[2]);
 
-  try {
-    const { targetDate, customWeights, focusDay } = req.body || {};
+  const buildV3FbPost = (
+    dateLabel: string,
+    pick3: string,
+    perms: string[],
+    jackpot4: string,
+    top2: string[],
+    bot2: string[],
+    d1: string,
+    d2: string
+  ) => {
+    const shieldList = defaultConv3D.doubleShieldSets || [];
+    const animalLine = cfg.hasAnimals
+      ? `\n🐉 นามสัตว์มงคล: ${defaultConv3D.animalLink.name} (${defaultConv3D.animalLink.number}) / ${defaultConv3D.animalBackup.name} (${defaultConv3D.animalBackup.number})`
+      : '';
+    return `${cfg.flag} สรุปแนวทาง${cfg.name} ประจำ${dateLabel} ${cfg.flag}\n(Engine V3 Mean-Reversion + Due-Gap จาก ${stats.totalDraws} งวด • Backtest วิ่ง/รูด ${stats.backtestReport.run2Rate}%)\n\n⭐ วิ่ง / รูด 19 ประตู (ตัวทำกำไรหลัก): ${d1} - ${d2}\n🎯 เจาะ 2 ตัวบน (5 ชุดคัดพิเศษ): ${top2.slice(0, 5).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bot2.slice(0, 4).join(' - ')}\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${pick3} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${perms.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุด V3 (13 ชุดหลัก + ${shieldList.length} เกราะกันเบิ้ล) 】:\n🥇 Tier 1 (เม็ดทอง): ${defaultConv3D.fifteenSetsPortfolio.tier1Gold.join(' - ')}\n🥈 Tier 2 (เม็ดเงิน): ${defaultConv3D.fifteenSetsPortfolio.tier2Silver.join(' - ')}\n🥉 Tier 3 (หลักเสริม + กันเบิ้ล): ${defaultConv3D.fifteenSetsPortfolio.tier3Shield.join(' - ')}\n\n⭐ ${cfg.fourDigitsLabel} แจ็กพอตเสริม: ${jackpot4}${animalLine}\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและความน่าจะเป็น\n${cfg.hashtags}`;
+  };
 
+  try {
     const drawDateThai = targetDate || upcoming.drawDateThai;
     const day = focusDay || upcoming.dayOfWeekThai;
     const latestDraw = draws[0];
 
-    const systemPrompt = `คุณคือผู้เชี่ยวชาญด้านคณิตศาสตร์สถิติและการวิเคราะห์ตัวเลขสำหรับ "หวยลาวพัฒนา" (Engine V3 Mean-Reversion + Positional Due-Gap)
-ผลรางวัลล่าสุด: ${latestDraw.drawDateThai} ออก 3 ตัวท้าย "${latestDraw.threeDigitsTop}" (2 ตัวท้าย ${latestDraw.twoDigitsTop}, สัตว์ ${latestDraw.animalName || '-'})
+    const systemPrompt = `คุณคือผู้เชี่ยวชาญด้านคณิตศาสตร์สถิติและการวิเคราะห์ตัวเลขสำหรับ "${cfg.name}" (Engine V3 Mean-Reversion + Positional Due-Gap)
+ผลรางวัลล่าสุด: ${latestDraw.drawDateThai} ออก 3 ตัวท้าย "${latestDraw.threeDigitsTop}" (2 ตัวบน ${latestDraw.twoDigitsTop}, 2 ตัวล่าง ${latestDraw.twoDigitsBottom}${cfg.hasAnimals ? `, สัตว์ ${latestDraw.animalName || '-'}` : ''})
 ผล Walk-Forward Backtest ย้อนหลัง ${stats.backtestReport.testedDraws} งวด: วิ่ง/รูด 2 ตัวเข้า ${stats.backtestReport.run2Rate}% | 2 ตัวบน 5 ชุดเข้า ${stats.backtestReport.twoTop5Rate}% | โต๊ด 15 ชุดเข้า ${stats.backtestReport.toad15Rate}%
 
 ข้อมูลจากเครื่องยนต์ V3 สำหรับงวดเป้าหมาย ${drawDateThai} (${day}):
 1. เลขค้างรอบเด่นสำหรับวิ่ง/รูด (Due-Gap Rebound): ${stats.recommendedRunDigits.join(', ')}
-2. สถิติเฉพาะ${day}: เด่นประจำวัน ${stats.dayStats[upcoming.dayOfWeek]?.topDigits.map((t) => t.digit).join(', ')}
+2. สถิติเฉพาะ${day}: เด่นประจำวัน ${stats.dayStats[upcoming.dayOfWeek]?.topDigits.map((t) => t.digit).join(', ') || 'รอสถิติเพิ่มเติม'}
 3. เลขล่าสุด 3 งวด (Flow): ${stats.flowDigits.join(', ')}
 4. ชุดหลักจาก V3 Matrix:
    - 3 ตัวเต็งแนะนำ: ${defaultConv3D.mainPick}
@@ -354,7 +427,7 @@ app.post('/api/ai/analyze', async (req: Request, res: Response) => {
     "fourDigitJackpot": "${defaultConv3D.fourDigitJackpot}",
     "totalSum": ${defaultConv3D.totalSum},
     "animalLink": { "name": "${defaultConv3D.animalLink.name}", "number": "${defaultConv3D.animalLink.number}" },
-    "strategyReason": "คำอธิบายกลยุทธ์ V3 Mean-Reversion + Due-Gap"
+    "strategyReason": "คำอธิบายกลยุทธ์ V3 Mean-Reversion + Due-Gap สำหรับ ${cfg.name}"
   },
   "fourDigitsSet": ${JSON.stringify([defaultConv3D.fourDigitJackpot, ...defaultConv4D.supportingPicks])},
   "threeDigitsDirect": ${JSON.stringify([defaultConv3D.mainPick, ...defaultConv3D.supportingPicks])},
@@ -366,11 +439,11 @@ app.post('/api/ai/analyze', async (req: Request, res: Response) => {
     { "name": "${defaultConv3D.animalBackup.name}", "number": "${defaultConv3D.animalBackup.number}", "reason": "สอดคล้อง 2 ตัวล่าง V3" }
   ],
   "confidenceScore": ${defaultConv3D.confidenceScore},
-  "rationale": "คำอธิบายกลยุทธ์ Mean-Reversion & Due-Gap สำหรับงวด ${drawDateThai}",
-  "facebookPostContent": "ข้อความโพสต์ Facebook เต็มรูปแบบ ที่เน้น วิ่ง/รูด ${mainD}-${secD}, 2 ตัวบน 5 ชุด, และพอร์ต 15 ชุด V3"
+  "rationale": "คำอธิบายกลยุทธ์ Mean-Reversion & Due-Gap สำหรับ${cfg.name} งวด ${drawDateThai}",
+  "facebookPostContent": "ข้อความโพสต์ Facebook เต็มรูปแบบสำหรับ ${cfg.name} ที่เน้น วิ่ง/รูด ${mainD}-${secD}, 2 ตัวบน 5 ชุด, และพอร์ต 15 ชุด V3"
 }`;
 
-    const userPrompt = `กรุณาสรุปวิเคราะห์ตัวเลขหวยลาว Engine V3 สำหรับงวด ${drawDateThai} (${day}) หลังผลงวดล่าสุด ${latestDraw.drawDateThai} ออก ${latestDraw.threeDigitsTop} โดยเน้นวิ่ง/รูด ${mainD}-${secD} และ 2 ตัวบน 5 ชุด พร้อมข้อความโพสต์ Facebook`;
+    const userPrompt = `กรุณาสรุปวิเคราะห์ตัวเลข${cfg.name} Engine V3 สำหรับงวด ${drawDateThai} (${day}) หลังผลงวดล่าสุด ${latestDraw.drawDateThai} ออก ${latestDraw.threeDigitsTop} โดยเน้นวิ่ง/รูด ${mainD}-${secD} และ 2 ตัวบน 5 ชุด พร้อมข้อความโพสต์ Facebook`;
 
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Gemini request timeout (10s)')), 10000)
@@ -403,6 +476,7 @@ app.post('/api/ai/analyze', async (req: Request, res: Response) => {
     const bot2List = parsedData.twoDigitsBottom || defaultConv3D.derivedTwoDigits.bottomList;
 
     const result = {
+      lotteryType,
       targetDrawDate: upcoming.drawDate,
       targetDrawDateThai: drawDateThai,
       dayOfWeekThai: day,
@@ -432,19 +506,21 @@ app.post('/api/ai/analyze', async (req: Request, res: Response) => {
       threeDigitsSwap: parsedData.threeDigitsSwap || defaultConv3D.permutations6.filter((x: string) => x !== main3D),
       twoDigitsTop: top2List,
       twoDigitsBottom: bot2List,
-      animalPicks: parsedData.animalPicks || [
-        { name: defaultConv3D.animalLink.name, number: defaultConv3D.animalLink.number, reason: `สอดคล้อง 2 ตัวบนเด่น ${defaultConv3D.derivedTwoDigits.top}` },
-        { name: defaultConv3D.animalBackup.name, number: defaultConv3D.animalBackup.number, reason: `สอดคล้อง 2 ตัวล่างกำลัง${day}` },
-      ],
-      confidenceScore: parsedData.confidenceScore || 96,
+      animalPicks: cfg.hasAnimals
+        ? parsedData.animalPicks || [
+            { name: defaultConv3D.animalLink.name, number: defaultConv3D.animalLink.number, reason: `สอดคล้อง 2 ตัวบนเด่น ${defaultConv3D.derivedTwoDigits.top}` },
+            { name: defaultConv3D.animalBackup.name, number: defaultConv3D.animalBackup.number, reason: `สอดคล้อง 2 ตัวล่างกำลัง${day}` },
+          ]
+        : [],
+      confidenceScore: parsedData.confidenceScore || defaultConv3D.confidenceScore,
       rationale:
         parsedData.rationale ||
-        `วิเคราะห์สดจากสถิติ ${stats.totalDraws} งวด (หลังผล ${latestDraw.threeDigitsTop}) ฟันธง 3 ตัวเต็ง (${main3D}) พร้อมพอร์ต 15 ชุดผสมเกราะกันเลขเบิ้ล 5 ชุด`,
+        defaultConv3D.strategyReason,
       sourceBreakdown: customWeights || {
         historical: 15,
         dayOfWeek: 12,
         kamlangWan: 12,
-        animal: 10,
+        animal: cfg.hasAnimals ? 10 : 0,
         flowMomentum: 12,
         killNumbers: 5,
         crossPosition: 12,
@@ -454,18 +530,28 @@ app.post('/api/ai/analyze', async (req: Request, res: Response) => {
       },
       facebookPostContent:
         parsedData.facebookPostContent ||
-        `🇱🇦 สรุปแนวทางหวยลาวพัฒนา ประจำ${drawDateThai} 🇱🇦\n(คำนวณสดจากสถิติ ${stats.totalDraws} งวด + สูตรพอร์ต 15 ชุด V2 กันหลุดเลขเบิ้ล)\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${main3D} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${(conv3D.permutations6 || defaultConv3D.permutations6).join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุดเต็งตรง (10 ชุดหลัก + 5 ชุดเกราะกันเบิ้ล) 】:\n🥇 Tier 1: ${defaultConv3D.fifteenSetsPortfolio.tier1Gold.join(' - ')}\n🥈 Tier 2: ${defaultConv3D.fifteenSetsPortfolio.tier2Silver.join(' - ')}\n🥉 Tier 3 (รวมเกราะกันเบิ้ล): ${defaultConv3D.fifteenSetsPortfolio.tier3Shield.join(' - ')}\n\n⭐ 4 ตัวแจ็กพอตเสริม: ${conv3D.fourDigitJackpot || defaultConv3D.fourDigitJackpot}\n⭐ เลขเด่น: ${mainD}  |  เลขรอง: ${secD}  |  วิ่ง/รูด: ${mainD} - ${secD}\n\n🎯 เจาะ 2 ตัวบน: ${top2List.slice(0, 3).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bot2List.slice(0, 3).join(' - ')}\n\n🐉 นามสัตว์มงคล: ${defaultConv3D.animalLink.name} (${defaultConv3D.animalLink.number}) / ${defaultConv3D.animalBackup.name} (${defaultConv3D.animalBackup.number})\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและปัญญาประดิษฐ์\n#หวยลาว #แนวทางหวยลาว #3ตัวเต็ง #หวยพัฒนา #เลขเด็ดหวยลาว #หวยลาววันนี้ #สถิติหวยลาว`,
+        buildV3FbPost(
+          drawDateThai,
+          main3D,
+          conv3D.permutations6 || defaultConv3D.permutations6,
+          conv3D.fourDigitJackpot || defaultConv3D.fourDigitJackpot,
+          top2List,
+          bot2List,
+          parsedData.highlightMain || mainD,
+          parsedData.highlightSecondary || secD
+        ),
       generatedAt: new Date().toISOString(),
     };
 
     res.json({ success: true, result });
   } catch (err: any) {
-    console.warn('AI API temporarily unavailable, using dynamic 10-source conviction engine:', err?.message || err);
+    console.warn(`AI API temporarily unavailable for ${lotteryType}, using V3 conviction engine:`, err?.message || err);
     const main3D = defaultConv3D.mainPick;
     const top2List = defaultConv3D.derivedTwoDigits.topList;
     const bot2List = defaultConv3D.derivedTwoDigits.bottomList;
 
     const fallbackResult = {
+      lotteryType,
       targetDrawDate: upcoming.drawDate,
       targetDrawDateThai: upcoming.drawDateThai,
       dayOfWeekThai: upcoming.dayOfWeekThai,
@@ -479,17 +565,19 @@ app.post('/api/ai/analyze', async (req: Request, res: Response) => {
       threeDigitsSwap: defaultConv3D.permutations6.filter((x: string) => x !== main3D),
       twoDigitsTop: top2List,
       twoDigitsBottom: bot2List,
-      animalPicks: [
-        { name: defaultConv3D.animalLink.name, number: defaultConv3D.animalLink.number, reason: `สอดคล้อง 2 ตัวบนเด่น ${defaultConv3D.derivedTwoDigits.top}` },
-        { name: defaultConv3D.animalBackup.name, number: defaultConv3D.animalBackup.number, reason: `สอดคล้อง 2 ตัวล่างกำลัง${upcoming.dayOfWeekThai}` },
-      ],
-      confidenceScore: 96,
+      animalPicks: cfg.hasAnimals
+        ? [
+            { name: defaultConv3D.animalLink.name, number: defaultConv3D.animalLink.number, reason: `สอดคล้อง 2 ตัวบนเด่น ${defaultConv3D.derivedTwoDigits.top}` },
+            { name: defaultConv3D.animalBackup.name, number: defaultConv3D.animalBackup.number, reason: `สอดคล้อง 2 ตัวล่างกำลัง${upcoming.dayOfWeekThai}` },
+          ]
+        : [],
+      confidenceScore: defaultConv3D.confidenceScore,
       rationale: defaultConv3D.strategyReason,
       sourceBreakdown: {
         historical: 15,
         dayOfWeek: 12,
         kamlangWan: 12,
-        animal: 10,
+        animal: cfg.hasAnimals ? 10 : 0,
         flowMomentum: 12,
         killNumbers: 5,
         crossPosition: 12,
@@ -497,7 +585,16 @@ app.post('/api/ai/analyze', async (req: Request, res: Response) => {
         expertConsensus: 7,
         aiDeep: 12,
       },
-      facebookPostContent: `🇱🇦 สรุปแนวทางหวยลาวพัฒนา ประจำ${upcoming.drawDateThai} 🇱🇦\n(คำนวณสดจากสถิติ ${stats.totalDraws} งวด + พอร์ต 15 ชุด V2 กันหลุดเลขเบิ้ล)\n\n👑 【 ฟันธง 3 ตัวเต็ง เม็ดเดียว 】:  🌟 ${main3D} 🌟\n💎 ชุด 6 กลับ (6 ประตูเต็ง-โต๊ด): ${defaultConv3D.permutations6.join(' - ')}\n\n🛡️ 【 พอร์ต 15 ชุดเต็งตรง (10 ชุดหลัก + 5 ชุดเกราะกันเบิ้ล) 】:\n🥇 Tier 1: ${defaultConv3D.fifteenSetsPortfolio.tier1Gold.join(' - ')}\n🥈 Tier 2: ${defaultConv3D.fifteenSetsPortfolio.tier2Silver.join(' - ')}\n🥉 Tier 3 (รวมเกราะกันเบิ้ล): ${defaultConv3D.fifteenSetsPortfolio.tier3Shield.join(' - ')}\n\n⭐ 4 ตัวแจ็กพอตเสริม: ${defaultConv3D.fourDigitJackpot}\n⭐ เลขเด่น: ${mainD}  |  เลขรอง: ${secD}  |  วิ่ง/รูด: ${mainD} - ${secD}\n\n🎯 เจาะ 2 ตัวบน: ${top2List.slice(0, 3).join(' - ')}\n🎯 เจาะ 2 ตัวล่าง: ${bot2List.slice(0, 3).join(' - ')}\n\n🐉 นามสัตว์มงคล: ${defaultConv3D.animalLink.name} (${defaultConv3D.animalLink.number}) / ${defaultConv3D.animalBackup.name} (${defaultConv3D.animalBackup.number})\n\n📌 สนับสนุนการเสี่ยงโชคอย่างมีสติ ข้อมูลนี้คำนวณตามหลักคณิตศาสตร์สถิติและปัญญาประดิษฐ์\n#หวยลาว #แนวทางหวยลาว #3ตัวเต็ง #หวยพัฒนา #เลขเด็ดหวยลาว #หวยลาววันนี้ #สถิติหวยลาว`,
+      facebookPostContent: buildV3FbPost(
+        upcoming.drawDateThai,
+        main3D,
+        defaultConv3D.permutations6,
+        defaultConv3D.fourDigitJackpot,
+        top2List,
+        bot2List,
+        mainD,
+        secD
+      ),
       generatedAt: new Date().toISOString(),
     };
 
@@ -677,18 +774,23 @@ interface TelegramNotificationConfig {
   pinMessage?: boolean;
   disableNotification?: boolean;
   hoursAhead: number;
-  customAlertTime: string;
+  customAlertTime: string; // Alert time for Lao (20:30 draw), default 17:30 or 18:30
+  earlyAlertTime?: string; // Alert time for Hanoi & Malay (18:30 draw), default 16:30
+  enabledLotteries?: LotteryType[];
   targetTime: string;
   status: 'connected' | 'disconnected' | 'testing';
   botUsername?: string;
   lastNotifiedDate?: string;
   lastAttemptDate?: string;
+  lastNotifiedByType?: Partial<Record<LotteryType, string>>;
+  lastAttemptByType?: Partial<Record<LotteryType, string>>;
   lastSyncTime?: string;
 }
 
 interface TelegramNotificationLog {
   id: string;
   sentAt: string;
+  lotteryType?: LotteryType;
   drawDate: string;
   drawDateThai: string;
   status: 'success' | 'failed' | 'simulated';
@@ -716,6 +818,14 @@ function parseTelegramChatIds(rawChatId: string): string[] {
     .filter(Boolean);
 }
 
+function normalizeEnabledLotteries(input?: any): LotteryType[] {
+  if (Array.isArray(input) && input.length > 0) {
+    const filtered = input.map(resolveLotteryType);
+    return Array.from(new Set(filtered));
+  }
+  return ['lao', 'hanoi', 'malay'];
+}
+
 function loadTelegramConfig(): TelegramNotificationConfig {
   const envAlertTime = (process.env.TELEGRAM_ALERT_TIME || '').trim();
   const defaultAlert = /^\d{1,2}:\d{2}$/.test(envAlertTime) ? envAlertTime : '18:30';
@@ -727,6 +837,7 @@ function loadTelegramConfig(): TelegramNotificationConfig {
       const hoursAhead = data.hoursAhead || 2;
       const resolvedCustomTime = data.customAlertTime || defaultAlert;
       const timeInfo = computeTargetAlertTime(hoursAhead, resolvedCustomTime);
+      const earlyAlert = /^\d{1,2}:\d{2}$/.test(data.earlyAlertTime || '') ? data.earlyAlertTime : '16:30';
       return {
         enabled: data.enabled ?? true,
         botToken: data.botToken || '',
@@ -736,11 +847,15 @@ function loadTelegramConfig(): TelegramNotificationConfig {
         disableNotification: data.disableNotification ?? false,
         hoursAhead,
         customAlertTime: `${String(timeInfo.hour).padStart(2, '0')}:${String(timeInfo.minute).padStart(2, '0')}`,
+        earlyAlertTime: earlyAlert,
+        enabledLotteries: normalizeEnabledLotteries(data.enabledLotteries),
         targetTime: data.targetTime || timeInfo.label,
         status: data.status || 'connected',
         botUsername: data.botUsername,
         lastNotifiedDate: data.lastNotifiedDate,
         lastAttemptDate: data.lastAttemptDate,
+        lastNotifiedByType: data.lastNotifiedByType || (data.lastNotifiedDate ? { lao: data.lastNotifiedDate } : {}),
+        lastAttemptByType: data.lastAttemptByType || {},
         lastSyncTime: data.lastSyncTime,
       };
     }
@@ -757,8 +872,12 @@ function loadTelegramConfig(): TelegramNotificationConfig {
     disableNotification: false,
     hoursAhead: 2,
     customAlertTime: `${String(defaultTimeInfo.hour).padStart(2, '0')}:${String(defaultTimeInfo.minute).padStart(2, '0')}`,
+    earlyAlertTime: '16:30',
+    enabledLotteries: ['lao', 'hanoi', 'malay'],
     targetTime: defaultTimeInfo.label,
     status: 'connected',
+    lastNotifiedByType: {},
+    lastAttemptByType: {},
   };
 }
 
@@ -798,20 +917,29 @@ function escapeHtml(text: string): string {
 
 function buildDefaultTelegramMessage(
   upcoming: ReturnType<typeof getUpcomingLaoDraw>,
-  stats: ReturnType<typeof computeComprehensiveStats>
+  stats: ReturnType<typeof computeComprehensiveStats>,
+  lotteryType: LotteryType = 'lao'
 ) {
+  const cfg = LOTTERY_CONFIGS[lotteryType];
   const conv3D = stats.threeDigitConviction;
-  const timeInfo = computeTargetAlertTime(telegramConfig.hoursAhead, telegramConfig.customAlertTime);
+  const alertTimeStr =
+    lotteryType === 'lao'
+      ? computeTargetAlertTime(telegramConfig.hoursAhead, telegramConfig.customAlertTime).label
+      : `${telegramConfig.earlyAlertTime || cfg.defaultAlertTime} น.`;
   const mainD = String(stats.recommendedRunDigits?.[0] ?? stats.hotDigits[0] ?? conv3D.mainPick[0]);
   const secD = String(stats.recommendedRunDigits?.[1] ?? stats.hotDigits[1] ?? conv3D.mainPick[1]);
   const top2Str = (conv3D.derivedTwoDigits.topList || [conv3D.derivedTwoDigits.top]).slice(0, 5).join(' - ');
   const bot2Str = (conv3D.derivedTwoDigits.bottomList || [conv3D.derivedTwoDigits.bottom]).slice(0, 4).join(' - ');
   const doubleShields = (conv3D.doubleShieldSets || conv3D.fifteenSetsPortfolio.doubleShieldSets || []).join(' - ');
+  const animalLine = cfg.hasAnimals
+    ? `\n🐉 <b>นามสัตว์มงคล:</b> ${escapeHtml(conv3D.animalLink.name)} (${conv3D.animalLink.number}) / ${escapeHtml(conv3D.animalBackup.name)} (${conv3D.animalBackup.number})`
+    : '';
+  const closeHint = lotteryType === 'lao' ? '20:00 น.' : '18:00 น.';
 
-  return `🇱🇦<b>【 แจ้งเตือนสมาชิกกลุ่ม! หวยลาวพัฒนาออกวันนี้ 】</b>🇱🇦
-⏰ เวลาแจ้งเตือน ${timeInfo.label} (หวยออกเวลา 20:30 น.)
+  return `${cfg.flag}<b>【 แจ้งเตือนสมาชิกกลุ่ม! ${escapeHtml(cfg.name)}ออกวันนี้ 】</b>${cfg.flag}
+⏰ เวลาแจ้งเตือน ${alertTimeStr} (หวยออกเวลา ${cfg.drawTimeLabel})
 📅 งวดประจำ${escapeHtml(upcoming.drawDateThai)}
-📊 <i>Engine V3 Mean-Reversion (Backtest 35 งวด: วิ่ง/รูด ${stats.backtestReport.run2Rate}%)</i>
+📊 <i>Engine V3 Mean-Reversion (Backtest ${stats.backtestReport.testedDraws} งวด: วิ่ง/รูด ${stats.backtestReport.run2Rate}%)</i>
 
 ⭐ <b>วิ่ง/รูด 19 ประตู (เด่นสุด):</b> <code>${mainD}</code> - <code>${secD}</code>
 🎯 <b>2 ตัวบน (5 ชุดคัดพิเศษ):</b> <code>${top2Str}</code>
@@ -825,10 +953,9 @@ function buildDefaultTelegramMessage(
 🥈 <b>Tier 2 (เม็ดเงิน):</b> <code>${conv3D.fifteenSetsPortfolio.tier2Silver.join(' - ')}</code>
 🥉 <b>Tier 3 (หลักเสริม + กันเบิ้ล):</b> <code>${conv3D.fifteenSetsPortfolio.tier3Shield.join(' - ')}</code>${doubleShields ? `\n🛡️ <b>เกราะกันเบิ้ล:</b> <code>${doubleShields}</code>` : ''}
 
-⭐ <b>4 ตัวแจ็กพอตเสริม:</b> <code>${conv3D.fourDigitJackpot}</code>
-🐉 <b>นามสัตว์มงคล:</b> ${escapeHtml(conv3D.animalLink.name)} (${conv3D.animalLink.number}) / ${escapeHtml(conv3D.animalBackup.name)} (${conv3D.animalBackup.number})
+⭐ <b>${escapeHtml(cfg.fourDigitsLabel)} แจ็กพอตเสริม:</b> <code>${conv3D.fourDigitJackpot}</code>${animalLine}
 
-⚠️ <i>ระบบปิดรับแทงประมาณ 20:00 น. ขอให้สมาชิกทุกท่านเฮงๆ ปังๆ ครับ!</i> 💰✨`;
+⚠️ <i>ระบบปิดรับแทงประมาณ ${closeHint} ขอให้สมาชิกทุกท่านเฮงๆ ปังๆ ครับ!</i> 💰✨`;
 }
 
 function getTelegramSchedulerStatus() {
@@ -839,9 +966,12 @@ function getTelegramSchedulerStatus() {
   const currentMin = bangkokTime.getUTCMinutes();
   const todayStr = bangkokTime.toISOString().slice(0, 10);
   const thaiDays = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-  const isDrawDay = [1, 2, 3, 4, 5].includes(dayOfWeek);
+
+  const enabledLotteries = normalizeEnabledLotteries(telegramConfig.enabledLotteries);
+  const isDrawDay = enabledLotteries.some((lt) => LOTTERY_CONFIGS[lt].drawDays.includes(dayOfWeek));
 
   const timeInfo = computeTargetAlertTime(telegramConfig.hoursAhead, telegramConfig.customAlertTime);
+  const earlyTimeInfo = computeTargetAlertTime(2, telegramConfig.earlyAlertTime || '16:30');
   const currentTotalMin = currentHour * 60 + currentMin;
   const targetTotalMin = timeInfo.hour * 60 + timeInfo.minute;
 
@@ -851,7 +981,24 @@ function getTelegramSchedulerStatus() {
   const hasEnvChatId = Boolean(process.env.TELEGRAM_CHAT_ID && parseTelegramChatIds(process.env.TELEGRAM_CHAT_ID).length > 0);
   const hasToken = Boolean(effectiveToken.length > 20);
   const hasChatId = effectiveChatIds.length > 0;
-  const alreadyNotifiedToday = telegramConfig.lastNotifiedDate === todayStr;
+
+  const byTypeStatus = ALL_LOTTERY_TYPES.reduce((acc, lt) => {
+    const cfg = LOTTERY_CONFIGS[lt];
+    acc[lt] = {
+      enabled: enabledLotteries.includes(lt),
+      isDrawDayToday: cfg.drawDays.includes(dayOfWeek),
+      alertTimeLabel: lt === 'lao' ? timeInfo.label : earlyTimeInfo.label,
+      drawTimeLabel: cfg.drawTimeLabel,
+      notifiedToday: telegramConfig.lastNotifiedByType?.[lt] === todayStr,
+    };
+    return acc;
+  }, {} as Record<LotteryType, any>);
+
+  const alreadyNotifiedToday =
+    enabledLotteries
+      .filter((lt) => LOTTERY_CONFIGS[lt].drawDays.includes(dayOfWeek))
+      .every((lt) => telegramConfig.lastNotifiedByType?.[lt] === todayStr) &&
+    enabledLotteries.some((lt) => LOTTERY_CONFIGS[lt].drawDays.includes(dayOfWeek));
 
   return {
     serverBangkokTime: `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')} น.`,
@@ -860,9 +1007,13 @@ function getTelegramSchedulerStatus() {
     isDrawDay,
     targetAlertTime: timeInfo.label,
     targetAlertHHMM: `${String(timeInfo.hour).padStart(2, '0')}:${String(timeInfo.minute).padStart(2, '0')}`,
+    earlyAlertTime: earlyTimeInfo.label,
+    earlyAlertHHMM: `${String(earlyTimeInfo.hour).padStart(2, '0')}:${String(earlyTimeInfo.minute).padStart(2, '0')}`,
     isPastAlertTimeToday: currentTotalMin >= targetTotalMin,
     isBeforeDrawToday: currentTotalMin <= 20 * 60 + 30,
     enabled: telegramConfig.enabled,
+    enabledLotteries,
+    byTypeStatus,
     hasToken,
     hasChatId,
     groupCount: effectiveChatIds.length,
@@ -993,7 +1144,7 @@ async function dispatchTelegramNotification(
 
 let isTelegramSchedulerRunning = false;
 
-async function runTelegramAutoScheduler(options?: { force?: boolean; source?: string }) {
+async function runTelegramAutoScheduler(options?: { force?: boolean; source?: string; lotteryType?: LotteryType }) {
   if (isTelegramSchedulerRunning) {
     return { triggered: false, reason: 'กำลังประมวลผลรอบส่ง Telegram อยู่' };
   }
@@ -1009,70 +1160,108 @@ async function runTelegramAutoScheduler(options?: { force?: boolean; source?: st
     const currentHour = bangkokTime.getUTCHours();
     const currentMin = bangkokTime.getUTCMinutes();
     const todayStr = bangkokTime.toISOString().slice(0, 10);
-
-    const timeInfo = computeTargetAlertTime(telegramConfig.hoursAhead, telegramConfig.customAlertTime);
     const currentTotalMin = currentHour * 60 + currentMin;
-    const targetTotalMin = timeInfo.hour * 60 + timeInfo.minute;
-    const drawCutoffMin = 20 * 60 + 35;
 
-    if (!options?.force) {
-      if (![1, 2, 3, 4, 5].includes(dayOfWeek)) {
-        return { triggered: false, reason: 'วันนี้ไม่ใช่วันออกรางวัลหวยลาว (ออกรางวัลทุกวันจันทร์–ศุกร์ หยุดเสาร์–อาทิตย์)' };
+    const laoTimeInfo = computeTargetAlertTime(telegramConfig.hoursAhead, telegramConfig.customAlertTime);
+    const earlyTimeInfo = computeTargetAlertTime(2, telegramConfig.earlyAlertTime || '16:30');
+    const enabledLotteries = normalizeEnabledLotteries(telegramConfig.enabledLotteries);
+
+    const targetTypes: LotteryType[] = options?.force
+      ? options.lotteryType
+        ? [options.lotteryType]
+        : enabledLotteries.filter((lt) => LOTTERY_CONFIGS[lt].drawDays.includes(dayOfWeek)).length > 0
+        ? enabledLotteries.filter((lt) => LOTTERY_CONFIGS[lt].drawDays.includes(dayOfWeek))
+        : [options.lotteryType || 'lao']
+      : enabledLotteries;
+
+    const dueTypes: LotteryType[] = [];
+    const skipReasons: string[] = [];
+
+    for (const lt of targetTypes) {
+      const cfg = LOTTERY_CONFIGS[lt];
+      if (!options?.force) {
+        if (!cfg.drawDays.includes(dayOfWeek)) {
+          skipReasons.push(`${cfg.shortName}: วันนี้ไม่ออก`);
+          continue;
+        }
+        const alertInfo = lt === 'lao' ? laoTimeInfo : earlyTimeInfo;
+        const alertMin = alertInfo.hour * 60 + alertInfo.minute;
+        if (currentTotalMin < alertMin) {
+          skipReasons.push(`${cfg.shortName}: รอ ${alertInfo.label}`);
+          continue;
+        }
+        if (currentTotalMin > cfg.cutoffTotalMin) {
+          skipReasons.push(`${cfg.shortName}: เลย ${cfg.drawTimeLabel} แล้ว`);
+          continue;
+        }
+        if (telegramConfig.lastNotifiedByType?.[lt] === todayStr) {
+          skipReasons.push(`${cfg.shortName}: ส่งแล้ววันนี้`);
+          continue;
+        }
+        if (telegramConfig.lastAttemptByType?.[lt] === todayStr) {
+          skipReasons.push(`${cfg.shortName}: รอตรวจ Token/ChatID`);
+          continue;
+        }
       }
-      if (currentTotalMin < targetTotalMin) {
-        return {
-          triggered: false,
-          reason: `ยังไม่ถึงเวลาแจ้งเตือน (${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')} น. < ${timeInfo.label})`,
-        };
-      }
-      if (currentTotalMin > drawCutoffMin) {
-        return { triggered: false, reason: 'เลยเวลาออกรางวัล 20:30 น. ของวันนี้แล้ว' };
-      }
-      if (telegramConfig.lastNotifiedDate === todayStr) {
-        return { triggered: false, reason: `ส่งแจ้งเตือนกลุ่ม Telegram งวด ${todayStr} สำเร็จไปแล้ว` };
-      }
-      if (telegramConfig.lastAttemptDate === todayStr) {
-        return { triggered: false, reason: `รอตรวจสอบ Bot Token / Chat ID ก่อนส่งซ้ำงวด ${todayStr}` };
-      }
+      dueTypes.push(lt);
     }
 
-    const draws = getAllDraws();
-    const stats = computeComprehensiveStats(draws);
-    const upcoming = getUpcomingLaoDraw(new Date(), 5, draws);
-    const conv3D = stats.threeDigitConviction;
-    const autoMsg = buildDefaultTelegramMessage(upcoming, stats);
-
-    const res = await dispatchTelegramNotification(autoMsg);
-
-    telegramConfig.lastSyncTime = new Date().toISOString();
-    if (res.success && !res.isSimulated) {
-      telegramConfig.lastNotifiedDate = todayStr;
-      delete telegramConfig.lastAttemptDate;
-    } else {
-      telegramConfig.lastAttemptDate = todayStr;
+    if (dueTypes.length === 0) {
+      return {
+        triggered: false,
+        reason: skipReasons.length > 0 ? skipReasons.join(' | ') : 'ยังไม่ถึงรอบแจ้งเตือนวันนี้',
+      };
     }
+
+    const dispatchedResults: any[] = [];
+    telegramConfig.lastNotifiedByType = telegramConfig.lastNotifiedByType || {};
+    telegramConfig.lastAttemptByType = telegramConfig.lastAttemptByType || {};
+
+    for (const lt of dueTypes) {
+      const cfg = LOTTERY_CONFIGS[lt];
+      const draws = getAllDraws(lt);
+      const stats = computeComprehensiveStats(draws, new Date(), lt);
+      const upcoming = getUpcomingLaoDraw(new Date(), cfg.defaultDaysAheadPost, draws, lt);
+      const conv3D = stats.threeDigitConviction;
+      const autoMsg = buildDefaultTelegramMessage(upcoming, stats, lt);
+
+      const res = await dispatchTelegramNotification(autoMsg);
+      telegramConfig.lastSyncTime = new Date().toISOString();
+
+      if (res.success && !res.isSimulated) {
+        telegramConfig.lastNotifiedByType[lt] = todayStr;
+        if (lt === 'lao') telegramConfig.lastNotifiedDate = todayStr;
+        delete telegramConfig.lastAttemptByType[lt];
+      } else {
+        telegramConfig.lastAttemptByType[lt] = todayStr;
+      }
+
+      const targetRecipient = getEffectiveTelegramChatId() || (res.isSimulated ? 'จำลอง' : 'Telegram Group');
+      const logItem: TelegramNotificationLog = {
+        id: `tg_auto_${lt}_${Date.now()}`,
+        sentAt: new Date().toISOString(),
+        lotteryType: lt,
+        drawDate: todayStr,
+        drawDateThai: `${cfg.flag} ${cfg.shortName} • ${upcoming.drawDateThai}`,
+        status: res.success ? (res.isSimulated ? 'simulated' : 'success') : 'failed',
+        recipient: targetRecipient,
+        numbersSummary: `[${cfg.shortName}] 3 ตัว: ${conv3D.mainPick} | วิ่ง ${stats.recommendedRunDigits.slice(0, 2).join('-')}`,
+        messagePreview: autoMsg.replace(/<[^>]+>/g, '').slice(0, 120) + '...',
+        error: res.success ? undefined : res.message,
+      };
+      telegramLogs.unshift(logItem);
+      dispatchedResults.push({ lotteryType: lt, result: res, log: logItem });
+    }
+
+    if (telegramLogs.length > 60) telegramLogs = telegramLogs.slice(0, 60);
     saveTelegramConfig(telegramConfig);
-
-    const targetRecipient = getEffectiveTelegramChatId() || (res.isSimulated ? 'จำลอง' : 'Telegram Group');
-    const logItem: TelegramNotificationLog = {
-      id: `tg_auto_${Date.now()}`,
-      sentAt: new Date().toISOString(),
-      drawDate: todayStr,
-      drawDateThai: upcoming.drawDateThai,
-      status: res.success ? (res.isSimulated ? 'simulated' : 'success') : 'failed',
-      recipient: targetRecipient,
-      numbersSummary: `3 ตัว: ${conv3D.mainPick} | 15 ชุด Hybrid`,
-      messagePreview: autoMsg.replace(/<[^>]+>/g, '').slice(0, 120) + '...',
-      error: res.success ? undefined : res.message,
-    };
-    telegramLogs.unshift(logItem);
-    if (telegramLogs.length > 50) telegramLogs.pop();
     saveTelegramLogs(telegramLogs);
 
     return {
       triggered: true,
-      result: res,
-      log: logItem,
+      dispatched: dispatchedResults,
+      result: dispatchedResults[0]?.result,
+      log: dispatchedResults[0]?.log,
       logs: telegramLogs,
     };
   } catch (e: any) {
@@ -1100,10 +1289,25 @@ app.get('/api/telegram/status', async (_req: Request, res: Response) => {
 });
 
 app.post('/api/telegram/config', (req: Request, res: Response) => {
-  const { botToken, chatId, topicThreadId, pinMessage, disableNotification, enabled, hoursAhead, customAlertTime } = req.body;
+  const {
+    botToken,
+    chatId,
+    topicThreadId,
+    pinMessage,
+    disableNotification,
+    enabled,
+    hoursAhead,
+    customAlertTime,
+    earlyAlertTime,
+    enabledLotteries,
+  } = req.body;
   const nextHours = hoursAhead !== undefined ? hoursAhead : telegramConfig.hoursAhead;
   const nextCustomTime = customAlertTime !== undefined ? customAlertTime : telegramConfig.customAlertTime;
   const timeInfo = computeTargetAlertTime(nextHours, nextCustomTime);
+  const nextEarlyTime =
+    earlyAlertTime !== undefined && /^\d{1,2}:\d{2}$/.test(String(earlyAlertTime).trim())
+      ? String(earlyAlertTime).trim()
+      : telegramConfig.earlyAlertTime || '16:30';
 
   telegramConfig = {
     ...telegramConfig,
@@ -1116,9 +1320,15 @@ app.post('/api/telegram/config', (req: Request, res: Response) => {
     enabled: enabled !== undefined ? enabled : telegramConfig.enabled,
     hoursAhead: nextHours,
     customAlertTime: `${String(timeInfo.hour).padStart(2, '0')}:${String(timeInfo.minute).padStart(2, '0')}`,
+    earlyAlertTime: nextEarlyTime,
+    enabledLotteries:
+      enabledLotteries !== undefined
+        ? normalizeEnabledLotteries(enabledLotteries)
+        : normalizeEnabledLotteries(telegramConfig.enabledLotteries),
     targetTime: timeInfo.label,
   };
   delete telegramConfig.lastAttemptDate;
+  telegramConfig.lastAttemptByType = {};
   saveTelegramConfig(telegramConfig);
   res.json({ success: true, config: telegramConfig, schedulerStatus: getTelegramSchedulerStatus() });
 });
@@ -1198,12 +1408,14 @@ app.post('/api/telegram/detect-groups', async (req: Request, res: Response) => {
   }
 });
 
-// 17. Test Send Telegram Group Message
+// 17. Test Send Telegram Group Message (supports lotteryType)
 app.post('/api/telegram/test-send', async (req: Request, res: Response) => {
-  const { customMessage, botToken, chatId, topicThreadId, pinMessage, disableNotification } = req.body || {};
-  const draws = getAllDraws();
-  const stats = computeComprehensiveStats(draws);
-  const upcoming = getUpcomingLaoDraw(new Date(), fbConfig.daysAhead || 5, draws);
+  const { customMessage, botToken, chatId, topicThreadId, pinMessage, disableNotification, lotteryType: rawType } = req.body || {};
+  const lotteryType = resolveLotteryType(rawType);
+  const cfg = LOTTERY_CONFIGS[lotteryType];
+  const draws = getAllDraws(lotteryType);
+  const stats = computeComprehensiveStats(draws, new Date(), lotteryType);
+  const upcoming = getUpcomingLaoDraw(new Date(), cfg.defaultDaysAheadPost, draws, lotteryType);
   const conv3D = stats.threeDigitConviction;
 
   const tokenToUse = getEffectiveTelegramToken(botToken);
@@ -1234,10 +1446,11 @@ app.post('/api/telegram/test-send', async (req: Request, res: Response) => {
   }
   if (configChanged) {
     delete telegramConfig.lastAttemptDate;
+    telegramConfig.lastAttemptByType = {};
     saveTelegramConfig(telegramConfig);
   }
 
-  const messageToSend = customMessage || buildDefaultTelegramMessage(upcoming, stats);
+  const messageToSend = customMessage || buildDefaultTelegramMessage(upcoming, stats, lotteryType);
   const result = await dispatchTelegramNotification(messageToSend, chatIdToUse, tokenToUse, {
     topicThreadId,
     pinMessage,
@@ -1247,17 +1460,18 @@ app.post('/api/telegram/test-send', async (req: Request, res: Response) => {
   const newLog: TelegramNotificationLog = {
     id: `tg_log_${Date.now()}`,
     sentAt: new Date().toISOString(),
+    lotteryType,
     drawDate: upcoming.drawDate,
-    drawDateThai: upcoming.drawDateThai,
+    drawDateThai: `${cfg.flag} ${cfg.shortName} • ${upcoming.drawDateThai}`,
     status: result.success ? (result.isSimulated ? 'simulated' : 'success') : 'failed',
     recipient: chatIdToUse || (result.isSimulated ? 'จำลอง' : 'Telegram Group'),
-    numbersSummary: `3 ตัว: ${conv3D.mainPick} | 4D: ${conv3D.fourDigitJackpot}`,
+    numbersSummary: `[${cfg.shortName}] 3 ตัว: ${conv3D.mainPick} | 4D: ${conv3D.fourDigitJackpot}`,
     messagePreview: messageToSend.replace(/<[^>]+>/g, '').slice(0, 120) + '...',
     error: result.success ? undefined : result.message,
   };
 
   telegramLogs.unshift(newLog);
-  if (telegramLogs.length > 50) telegramLogs.pop();
+  if (telegramLogs.length > 60) telegramLogs = telegramLogs.slice(0, 60);
   saveTelegramLogs(telegramLogs);
 
   res.json({
@@ -1269,10 +1483,12 @@ app.post('/api/telegram/test-send', async (req: Request, res: Response) => {
   });
 });
 
-// 18. External Cron Trigger Endpoint for Telegram
+// 18. External Cron Trigger Endpoint for Telegram (supports ?type=lao|hanoi|malay)
 app.all('/api/telegram/cron-trigger', async (req: Request, res: Response) => {
   const force = req.query.force === 'true' || req.body?.force === true;
-  const outcome = await runTelegramAutoScheduler({ force, source: force ? 'manual-force' : 'external-cron' });
+  const rawType = req.query.type || req.body?.lotteryType;
+  const lotteryType = rawType ? resolveLotteryType(rawType) : undefined;
+  const outcome = await runTelegramAutoScheduler({ force, source: force ? 'manual-force' : 'external-cron', lotteryType });
   res.json({
     success: true,
     ...outcome,
