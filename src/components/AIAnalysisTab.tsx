@@ -1068,13 +1068,13 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
                     <span>ตอบข้อสงสัย: 4 ชุด vs 15 ชุด แบบไหนได้เปรียบกว่า?</span>
                   </div>
                   <h3 className="text-xl sm:text-2xl font-black text-white">
-                    🛡️ พอร์ต 15 ชุด Hybrid: 10 ชุดแกนหลัก + 5 ชุดเกราะกันเบิ้ล/หาม
+                    🛡️ พอร์ต 15 ชุด Hybrid V3: {15 - doubleShieldCount} ชุดแกนหลัก + {doubleShieldCount} ชุดเกราะกันเบิ้ล/หาม
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-300 mt-1 leading-relaxed max-w-3xl">
-                    ทางคณิตศาสตร์ <strong>เลข 3 ตัวจะมีโอกาสออกเบิ้ลหรือหาม (XYY, XXY, XYX เช่น <span className="text-rose-300 font-mono">900</span>) สูงถึง 28% (280 ใน 1,000 ชุด)</strong> ระบบ V2 จึงแบ่งพอร์ต 15 ชุดออกเป็น{' '}
-                    <strong>10 ชุดเลขไม่ซ้ำหลัก</strong> (จากแกน{' '}
+                    ทางคณิตศาสตร์ <strong>เลข 3 ตัวจะมีโอกาสออกเบิ้ลหรือหาม (XYY, XXY, XYX เช่น <span className="text-rose-300 font-mono">900</span>) สูงถึง 28% (280 ใน 1,000 ชุด)</strong> ระบบ Hybrid V3 จึงแบ่งพอร์ต 15 ชุดออกเป็น{' '}
+                    <strong>{15 - doubleShieldCount} ชุดเลขไม่ซ้ำหลัก</strong> (จากแกน{' '}
                     <strong className="text-amber-300 font-mono">{threeConviction.wheeling6Digits.join(' - ')}</strong>) +{' '}
-                    <strong className="text-cyan-300">5 ชุดเกราะกันเบิ้ล/หาม</strong> เพื่อปิดจุดบอดที่เคยทำให้พลาดงวด 900!
+                    <strong className="text-cyan-300">{doubleShieldCount} ชุดเกราะกันเบิ้ล/หาม</strong> เพื่อปิดจุดบอดเลขซ้ำและเลขเบิ้ล!
                   </p>
                 </div>
 
@@ -1125,15 +1125,15 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
                   <div>
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider block mb-1">
-                        👑 พอร์ต 15 ชุด (Hybrid V2)
+                        👑 พอร์ต 15 ชุด (Hybrid V3)
                       </span>
                       <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded text-[10px] font-bold">
                         สมดุลสูงสุด
                       </span>
                     </div>
-                    <span className="text-lg font-black text-white block">10 ชุดแกน + 5 ชุดกันเบิ้ล</span>
+                    <span className="text-lg font-black text-white block">{15 - doubleShieldCount} ชุดแกน + {doubleShieldCount} ชุดกันเบิ้ล</span>
                     <p className="text-[11px] text-amber-100/90 mt-1">
-                      ครอบคลุมทั้งเลขแกน 5 ตัว ({threeConviction.wheeling5Digits.join('-')}) และ 5 ชุดเกราะกันเบิ้ล ({Array.from(doubleShieldSet).join(', ')})
+                      ครอบคลุมทั้งเลขแกน 5 ตัว ({threeConviction.wheeling5Digits.join('-')}) และ {doubleShieldCount} ชุดเกราะกันเบิ้ล ({Array.from(doubleShieldSet).join(', ')})
                     </p>
                   </div>
                   <div className="mt-3 pt-3 border-t border-amber-500/30 flex items-center justify-between text-xs font-mono">
@@ -1417,7 +1417,7 @@ export const AIAnalysisTab: React.FC<AIAnalysisTabProps> = ({
                       3
                     </span>
                     <h4 className="text-sm sm:text-base font-bold text-cyan-300">
-                      🥉 Tier 3: 3 ชุดแกนหลักเสริม + 🛡️ 5 ชุดเกราะกันเบิ้ล/หาม (ปิดจุดบอด XYY)
+                      🥉 Tier 3: ชุดแกนหลักเสริม + 🛡️ {doubleShieldCount} ชุดเกราะกันเบิ้ล/หาม (ปิดจุดบอด XYY)
                     </h4>
                     <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded-full font-bold">
                       แนะนำลง 25% ของงบ
