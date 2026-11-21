@@ -1103,7 +1103,9 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
                 </h4>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                นำลิงก์นี้ไปตั้งเวลาที่ <strong className="text-white">cron-job.org</strong> (ฟรี) ให้ยิง<strong>ทุกวัน (จันทร์–อาทิตย์)</strong> ช่วง <strong className="text-rose-300">{earlyAlertTime} น.</strong> (สำหรับฮานอย/มาเลย์) และ <strong className="text-sky-300">{customAlertTime} น.</strong> (สำหรับลาว):
+                บน <strong className="text-white">Vercel</strong> ระบบ <code className="text-sky-300">vercel.json</code> จะตั้ง Cron ปลุกให้อัตโนมัติ หรือใช้ <strong className="text-white">cron-job.org</strong> ยิงทุกวัน:
+                <br />• <strong className="text-rose-300">{earlyAlertTime} น.</strong> (ฮานอย/มาเลย์): <code className="text-rose-200">?slot=early</code>
+                <br />• <strong className="text-sky-300">{customAlertTime} น.</strong> (หวยลาว จ–ศ): <code className="text-sky-200">?slot=lao</code>
               </p>
               <div className="flex items-center gap-1.5">
                 <input
@@ -1304,9 +1306,9 @@ export const TelegramNotifyTab: React.FC<TelegramNotifyTabProps> = ({
               </div>
               <h4 className="text-sm font-bold text-white">ตั้งเวลาส่งเข้ากลุ่มแม้ปิดหน้าเว็บ</h4>
               <p className="text-xs text-slate-300 leading-relaxed">
-                ตั้ง Secrets <code>TELEGRAM_BOT_TOKEN</code> และ <code>TELEGRAM_CHAT_ID</code> ใน AI Studio / Render แล้วนำ URL ด้านล่างไปตั้งใน{' '}
-                <strong className="text-sky-400">cron-job.org</strong> ให้ยิง <strong>ทุกวัน (จันทร์–อาทิตย์)</strong> ช่วงเวลา{' '}
-                <strong>{earlyAlertTime} น.</strong> (สำหรับฮานอย/มาเลย์) และ <strong>{customAlertTime} น.</strong> (สำหรับลาว)
+                ตั้ง Environment Variables <code>TELEGRAM_BOT_TOKEN</code> และ <code>TELEGRAM_CHAT_ID</code> ใน <strong>Vercel → Settings → Environment Variables</strong> (ระบบมี <code>vercel.json</code> Cron ในตัว) หรือตั้งที่{' '}
+                <strong className="text-sky-400">cron-job.org</strong> ให้ยิง <code>?slot=early</code> เวลา{' '}
+                <strong>{earlyAlertTime} น.</strong> (ทุกวัน) และ <code>?slot=lao</code> เวลา <strong>{customAlertTime} น.</strong> (จ–ศ)
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <code className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-sky-300 overflow-x-auto">

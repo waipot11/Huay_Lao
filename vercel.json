@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!api/|assets/|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/telegram/cron-trigger?slot=early",
+      "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/telegram/cron-trigger?slot=lao",
+      "schedule": "30 10 * * 1-5"
+    }
+  ]
+}
